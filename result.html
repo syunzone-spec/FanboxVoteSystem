@@ -3,5 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投票結果状況</title>
-    <meta property="og:title" content
+    <title>投票結果速報</title>
+    
+    <meta property="og:title" content="リクエスト投票結果（速報）">
+    <meta property="og:description" content="現在の投票順位">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; line-height: 1.6; background-color: #f9f9f9; }
+        
+        .container { padding: 25px; border-radius: 12px; border: 1px solid #ddd; background: #fff; margin-bottom: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #28a745; margin-top: 0; margin-bottom: 10px; }
+        
+        /* グラフスタイル */
+        .result-row { margin-bottom: 15px; text-align: left; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .result-row:last-child { border-bottom: none; }
+        .result-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px; }
+        .char-name { font-weight: bold; font-size: 1.1em; }
+        .char-theme { font-size: 0.85em; color: #666; margin-left: 5px; }
+        .vote-count { font-weight: bold; font-size: 1.1em; color: #28a745; }
+        .result-bar-bg { background: #f0f0f0; height: 12px; border-radius: 6px; overflow: hidden; width: 100%; }
+        .result-bar-fill { background: linear-gradient(90deg, #28a745, #218838); height: 100%; width: 0%; transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1); }
+        
+        /* 順位バッジ */
+        .rank-badge { display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; background: #eee; font-size: 0.8em; font-weight: bold; margin-right: 5px; }
+        .rank-1 { background: #ffd700; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.2); }
+        .rank-2 { background: #c0c0c0; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.2); }
+        .rank-3 { background: #cd7f32; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.2); }
+
+        /* ▼▼ 修正箇所：誘導エリアのデザイン強化 ▼▼ */
+        .cta-box { background-color: #fff8e1; border: 2px solid #ffc107; padding: 25px; border-radius: 10px; margin-top: 30px; box-shadow: 0 4px 10px rgba(255, 193, 7, 0.2); }
+        .cta-title { color: #d39e00; font-weight: bold; font-size: 1.3em; margin-bottom: 10px; display: block; }
+        
+        /* Fanbox誘導ボタン（メイン） */
+        .fanbox-btn { 
+            display: inline-block; margin-top: 15px; padding: 15px 40px; 
+            background: linear-gradient(45deg, #ff9900, #ffcc00); 
+            color: white; text-decoration: none; border-radius: 30px; 
+            font-weight: bold; font-size: 1.1em;
+            box-shadow: 0 4px 6px rgba(255, 153, 0, 0.3); 
+            transition: transform 0.2s, box-shadow 0.2s; 
+        }
+        .fanbox-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 10px rgba(255, 153, 0, 0.4); }
+
+        /* 投票所リンク（サブ） */
+        .vote-link { display: block; margin-top: 15px; color: #007bff; font-size: 0.9em; text-decoration: underline; cursor: pointer; }
+        .vote-link:hover { color: #0056b3; }
+
+        .footer-link { margin-top: 20px; font-size: 0.9em; }
+        .footer-link a { color: #666; }
+        .loading { color: #888; font-style: italic; padding: 20px; }
+        .error-msg { color: #dc3545; background: #ffe6e6; padding: 10px; border-radius: 5px; }
+        button.reload-btn { background: transparent; border: 1px solid #ccc; padding: 5px 15px; border-radius: 4px; color: #666; cursor: pointer; margin-top: 10px; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>現在の集計結果</h2>
+        <p style="font-size:0.85em; color:#888; margin-bottom:20px;">
+            ※リアルタイム更新中 <br>
+            <button onclick="location.reload()" class="reload-btn">↻ 最新情報に更新</button>
+        </p>
+        
+        <div id="ranking-list">
+            <div class="loading">データを読み込んでいます...</div>
+        </div>
+    </div>
+
+    <div class="cta-box">
+        <span class="cta-title">投票でお題を決定！</span>
+        <p>pixivFANBOXで支援すると、<br>専用のガチャ投票システムに参加できます。<br></p>
+        
+        <a href="https://syunzou.fanbox.cc/" target="_blank" class="fanbox-btn">pixivFANBOXで支援する ➜</a>
+        
+        <a href="vote.html" class="vote-link">すでに支援者の方はこちら（投票ページへ）</a>
+    </div>
+    <div class="footer-link">
+        <a href="index.html">← リクエスト投稿フォームに戻る</a>
+    </div>
+
+    <script>
+        // ★★★ GASのURLをここに貼り付けてください ★★★
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec";
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const container = document.getElementById('ranking-list');
+
+            try {
+                // public_results モードでAPIを叩く
+                const res = await fetch(`${GAS_API_URL}?mode=public_results`);
+                const json = await res.json();
+
+                if (json.status === 'success') {
+                    renderResults(json.data.results);
+                } else {
+                    container.innerHTML = `<div class="error-msg">データの取得に失敗しました。<br>${json.message || ''}</div>`;
+                }
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = `<div class="error-msg">通信エラーが発生しました。<br>時間をおいて再読み込みしてください。</div>`;
+            }
+        });
+
+        function renderResults(ranking) {
+            const container = document.getElementById('ranking-list');
+            container.innerHTML = "";
+            
+            if (!ranking || ranking.length === 0) {
+                container.innerHTML = "<p>まだ投票データがありません。</p>";
+                return;
+            }
+
+            const maxVote = ranking[0].count > 0 ? ranking[0].count : 1;
+
+            ranking.forEach((item, index) => {
+                const percent = (item.count / maxVote) * 100;
+                const rank = index + 1;
+                
+                let badgeClass = "rank-badge";
+                if (rank === 1) badgeClass += " rank-1";
+                else if (rank === 2) badgeClass += " rank-2
