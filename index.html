@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fanbox支援者向けリクエスト</title>
+    <meta property="og:title" content="Fanbox リクエスト受付所">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.6; }
+        h2 { text-align: center; color: #444; margin-bottom: 20px; }
+        
+        /* 注意事項ボックス */
+        .notice-box { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 15px; border-radius: 5px; margin-bottom: 25px; font-size: 0.9em; }
+        .notice-box ul { margin: 5px 0 0 0; padding-left: 20px; }
+        .notice-box li { margin-bottom: 5px; }
+        .important { color: #d9534f; font-weight: bold; }
+
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .hint { font-size: 0.8em; color: #666; display: block; margin-bottom: 5px; }
+        
+        input, textarea, select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        input:focus, textarea:focus { border-color: #007bff; outline: none; }
+        
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #status-message { margin-top: 20px; padding: 15px; border-radius: 5px; display: none; text-align: center; font-weight: bold; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+
+        /* 非表示クラス */
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <h2>Fanbox支援者向けリクエスト募集</h2>
+
+    <div class="notice-box">
+        <strong>【必ずお読みください】</strong>
+        <ul>
+            <li><span class="important">Pixiv ID</span>はお間違えのないようお願いします。誤りがある場合、支援者確認が取れず<span class="important">無効票</span>となる可能性があります。</li>
+            <li>投票リストに追加する際に、リクエスト内容はこちらで修正します。細かすぎる内容や対応が難しい内容は反映されない可能性があるのでご了承下さい。</li>
+            <li>集計は手作業で行っているため、なにかあれば、Fanboxのメッセージやコメントにてお知らせください。</li>
+            <li>期間中に同一IDから複数のリクエストがあった場合、<span class="important">最後に送信された内容のみを有効（後勝ち）</span>とします。修正したい場合は再度送信してください。</li>
+            <li>エラーが出る場合は時間を変えてリトライしてください。</li>
+        </ul>
+    </div>
+    
+    <form id="request-form">
+        <div class="form-group">
+            <label>Pixiv ID (数値のみ)</label>
+            <span class="hint">支援者確認のため必須です。</span>
+            <input type="number" id="pixiv_id" placeholder="例: 12345678" required>
+        </div>
+
+        <div class="form-group">
+            <label>ハンドルネーム</label>
+            <input type="text" id="nickname" placeholder="お名前" maxlength="20" required>
+        </div>
+
+        <div class="form-group">
+            <label>キャラクター名</label>
+            <input type="text" id="character" placeholder="例: 立花響" maxlength="30" required>
+        </div>
+
+        <div class="form-group">
+            <label>シチュエーション</label>
+            <span class="hint">最大50文字程度。簡潔にお願いします。</span>
+            <input type="text" id="theme" placeholder="例: ギャル、バニー" maxlength="50" required>
+        </div>
+
+        <div class="form-group hidden">
+            <label>属性・差分案</label>
+            <textarea id="attributes" rows="3" placeholder="現在は使用していません"></textarea>
+        </div>
+
+        <button type="submit" id="submit-btn">リクエストを送信</button>
+    </form>
+
+    <div id="status-message"></div>
+
+    <script>
+        // ==========================================
+        // 設定: ここにGASのデプロイURLを貼る
+        // ==========================================
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec"; 
+
+        // ------------------------------------------
+        // 初期化処理
+        // ------------------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            // UUID生成（指紋用）
+            getOrCreateUUID();
+            
+            // 前回情報の呼び出し（入力の手間削減）
+            loadUserInfo();
+        });
+
+        // ------------------------------------------
+        // 送信処理
+        // ------------------------------------------
+        document.getElementById('request-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submit-btn');
+            const msgDiv = document.getElementById('status-message');
+            
+            // UIロック
+            btn.disabled = true;
+            btn.innerText = "送信中...";
+            msgDiv.style.display = 'none';
+
+            try {
+                // IP取得
+                const ip = await getIpAddress();
+                
+                // フォーム値取得
+                const pixivId = document.getElementById('pixiv_id').value;
+                const nickname = document.getElementById('nickname').value;
+                const character = document.getElementById('character').value;
+                const theme = document.getElementById('theme').value;
+                const attributes = document.getElementById('attributes').value; // 非表示だが送信データには含める
+
+                const formData = {
+                    action: 'submit_request',
+                    pixiv_id: pixivId,
+                    nickname: nickname,
+                    character: character,
+                    theme: theme, // GAS側はthemeで受けているため変数名はそのまま
+                    attributes: attributes,
+                    // 指紋情報
+                    ip_address: ip,
+                    user_agent: navigator.userAgent,
+                    device_uuid: getOrCreateUUID(),
+                    screen_info: `${window.screen.width}x${window.screen.height}`
+                };
+
+                // GAS送信
+                const response = await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showMessage('success', 'リクエストを受け付けました！\n修正したい場合は、再度送信してください（上書きされます）。');
+                    
+                    // 次回のためにユーザー情報を保存（IDとHNのみ）
+                    saveUserInfo(pixivId, nickname);
+                    
+                    // フォームをリセット（IDとHNは残す）
+                    document.getElementById('character').value = '';
+                    document.getElementById('theme').value = '';
+                } else {
+                    throw new Error(result.message || 'Unknown error');
+                }
+
+            } catch (error) {
+                console.error(error);
+                showMessage('error', '送信エラー: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "リクエストを送信";
+            }
+        });
+
+        // ------------------------------------------
+        // 便利機能: 前回情報の保存と復元
+        // ------------------------------------------
+        function saveUserInfo(pixivId, nickname) {
+            const info = { pixiv_id: pixivId, nickname: nickname };
+            localStorage.setItem('gacha_user_info', JSON.stringify(info));
+        }
+
+        function loadUserInfo() {
+            const json = localStorage.getItem('gacha_user_info');
+            if (json) {
+                try {
+                    const info = JSON.parse(json);
+                    if (info.pixiv_id) document.getElementById('pixiv_id').value = info.pixiv_id;
+                    if (info.nickname) document.getElementById('nickname').value = info.nickname;
+                } catch (e) {
+                    console.error("保存データの読み込みに失敗しました", e);
+                }
+            }
+        }
+
+        // ------------------------------------------
+        // ユーティリティ
+        // ------------------------------------------
+        async function getIpAddress() {
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                return data.ip;
+            } catch (e) { return "unknown"; }
+        }
+
+        function getOrCreateUUID() {
+            const KEY = 'gacha_device_uuid';
+            let uuid = localStorage.getItem(KEY);
+            if (!uuid) {
+                if (crypto && crypto.randomUUID) {
+                    uuid = crypto.randomUUID();
+                } else {
+                    uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                        return v.toString(16);
+                    });
+                }
+                localStorage.setItem(KEY, uuid);
+            }
+            return uuid;
+        }
+
+        function showMessage(type, text) {
+            const div = document.getElementById('status-message');
+            div.className = type;
+            div.innerText = text;
+            div.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
