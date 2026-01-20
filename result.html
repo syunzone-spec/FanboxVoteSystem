@@ -32,11 +32,10 @@
         .rank-2 { background: #c0c0c0; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.2); }
         .rank-3 { background: #cd7f32; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.2); }
 
-        /* ▼▼ 修正箇所：誘導エリアのデザイン強化 ▼▼ */
+        /* 誘導エリア */
         .cta-box { background-color: #fff8e1; border: 2px solid #ffc107; padding: 25px; border-radius: 10px; margin-top: 30px; box-shadow: 0 4px 10px rgba(255, 193, 7, 0.2); }
         .cta-title { color: #d39e00; font-weight: bold; font-size: 1.3em; margin-bottom: 10px; display: block; }
         
-        /* Fanbox誘導ボタン（メイン） */
         .fanbox-btn { 
             display: inline-block; margin-top: 15px; padding: 15px 40px; 
             background: linear-gradient(45deg, #ff9900, #ffcc00); 
@@ -47,7 +46,6 @@
         }
         .fanbox-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 10px rgba(255, 153, 0, 0.4); }
 
-        /* 投票所リンク（サブ） */
         .vote-link { display: block; margin-top: 15px; color: #007bff; font-size: 0.9em; text-decoration: underline; cursor: pointer; }
         .vote-link:hover { color: #0056b3; }
 
@@ -66,22 +64,10 @@
             ※リアルタイム更新中 <br>
             <button onclick="location.reload()" class="reload-btn">↻ 最新情報に更新</button>
         </p>
-        
+        <p>🗳️ 投票期間：2026年1月20日～2026年1月31日</p>
         <div id="ranking-list">
             <div class="loading">データを読み込んでいます...</div>
         </div>
-    </div>
-
-    <div class="cta-box">
-        <span class="cta-title">投票でお題を決定！</span>
-        <p>pixivFANBOXで支援すると、<br>専用のガチャ投票システムに参加できます。<br></p>
-        
-        <a href="https://syunzou.fanbox.cc/" target="_blank" class="fanbox-btn">pixivFANBOXで支援する ➜</a>
-        
-        <a href="vote.html" class="vote-link">すでに支援者の方はこちら（投票ページへ）</a>
-    </div>
-    <div class="footer-link">
-        <a href="index.html">← リクエスト投稿フォームに戻る</a>
     </div>
 
     <script>
@@ -124,4 +110,29 @@
                 
                 let badgeClass = "rank-badge";
                 if (rank === 1) badgeClass += " rank-1";
-                else if (rank === 2) badgeClass += " rank-2
+                else if (rank === 2) badgeClass += " rank-2";
+                else if (rank === 3) badgeClass += " rank-3";
+
+                const div = document.createElement('div');
+                div.className = 'result-row';
+                div.innerHTML = `
+                    <div class="result-header">
+                        <div>
+                            <span class="${badgeClass}">${rank}</span>
+                            <span class="char-name">${esc(item.character)}</span>
+                            <span class="char-theme">${esc(item.theme)}</span>
+                        </div>
+                        <span class="vote-count">${item.count}<small style="font-size:0.7em; color:#888;">票</small></span>
+                    </div>
+                    <div class="result-bar-bg">
+                        <div class="result-bar-fill" style="width: ${percent}%;"></div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function esc(s) { return s ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : ""; }
+    </script>
+</body>
+</html>
