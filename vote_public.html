@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リクエスト投票所</title>
+    <meta property="og:title" content="リクエスト投票所">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; }
+        .top-link { margin-bottom: 20px; }
+        .top-link a { color: #007bff; text-decoration: none; font-weight: bold; border: 1px solid #007bff; padding: 8px 15px; border-radius: 20px; }
+        .top-link a:hover { background: #f0f8ff; }
+        
+        .candidate-card { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; text-align: left; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .vote-btn { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .vote-btn:disabled { background: #ccc; }
+        .notice { background: #e2f0ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h2>一般投票所</h2>
+    
+    <div class="top-link">
+        <a href="result.html" target="_blank">📊 現在の順位を確認する</a>
+    </div>
+
+    <div class="notice">
+        <p>どなたでも1日1回投票可能です！（1票）</p>
+        <p>🗳️ 投票期間：2026年1月20日～2026年1月31日</p>
+	<hr style="border: 0; border-top: 1px dashed #ccc; margin: 15px 0;">
+        <p style="color: #d9534f; font-size: 0.9em; font-weight: bold;">
+            【ご注意】<br>
+            公平性を保つため、不自然な連続投票や不正と検知した票は<BR>集計時に無効とさせていただく場合があります。
+        </p>
+    </div>
+
+    <div id="candidates-list">読み込み中...</div>
+
+    <script>
+        // ★GAS URL★
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec";
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch(`${GAS_API_URL}?mode=public_vote`);
+                const json = await res.json();
+                
+                // リストをシャッフルしてから表示
+                const shuffled = shuffleArray(json.data.candidates);
+                renderCandidates(shuffled);
+            } catch(e) {
+                document.getElementById('candidates-list').innerText = "読み込みエラー";
+            }
+        });
+
+        // シャッフル関数 (Fisher-Yates)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function renderCandidates(list) {
+            const container = document.getElementById('candidates-list');
+            container.innerHTML = "";
+            list.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'candidate-card';
+                div.innerHTML = `
+                    <div><strong>${item.character}</strong><br><small>${item.theme}</small></div>
+                    <button class="vote-btn" onclick="vote('${item.id}', '${item.character}')">投票 (1pt)</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function vote(targetId, charName) {
+            if(!confirm(`「${charName}」に投票しますか？(1票)`)) return;
+            const btns = document.querySelectorAll('.vote-btn');
+            btns.forEach(b => b.disabled = true);
+            
+            try {
+                const ip = await getIp();
+                const payload = {
+                    action: 'submit_vote_public',
+                    target_request_id: targetId,
+                    ip_address: ip,
+                    user_agent: navigator.userAgent,
+                    screen_info: `${window.screen.width}x${window.screen.height}`,
+                    device_uuid: getUUID()
+                };
+                
+                const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    alert("投票しました！");
+                    location.href = 'result.html'; 
+                } else {
+                    alert(json.message);
+                    btns.forEach(b => b.disabled = false);
+                }
+            } catch(e) {
+                alert("通信エラー");
+                btns.forEach(b => b.disabled = false);
+            }
+        }
+
+        async function getIp() { try { const r = await fetch('https://api.ipify.org?format=json'); return (await r.json()).ip; } catch { return ''; } }
+        function getUUID() {
+            let u = localStorage.getItem('g_uuid');
+            if(!u) { u = crypto.randomUUID(); localStorage.setItem('g_uuid', u); }
+            return u;
+        }
+    </script>
+</body>
+</html>
