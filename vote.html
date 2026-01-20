@@ -1,299 +1,203 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fanbox支援者向けリクエスト投票所</title>
-    <meta property="og:title" content="Fanbox リクエスト投票所">
-    <meta property="og:type" content="website">
-    <meta name="twitter:card" content="summary_large_image">
+    <title>【支援者限定】ガチャ投票所</title>
     <style>
-        body { font-family: "Helvetica Neue", Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; line-height: 1.6; }
+        body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; background: #fffaf0; }
         
-        /* コンテナ共通 */
-        #login-section, #gacha-section, #voting-section, #result-section { 
-            margin-bottom: 30px; padding: 20px; border-radius: 10px; border: 1px solid #ddd; background: #fff; 
-        }
-        .hidden { display: none !important; }
-
-        /* 注意書きエリア */
-        .notice-box { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 15px; border-radius: 5px; margin-bottom: 25px; font-size: 0.9em; text-align: left; }
-        .notice-box ul { margin: 5px 0 0 0; padding-left: 20px; }
-        .important { color: #d9534f; font-weight: bold; }
+        .top-link { margin-bottom: 20px; }
+        .top-link a { color: #ff9900; text-decoration: none; font-weight: bold; border: 1px solid #ff9900; padding: 8px 15px; border-radius: 20px; background: white; }
         
-        /* 入力フォーム */
-        input[type="number"] { padding: 12px; font-size: 1.2em; width: 80%; text-align: center; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
+        .login-box, .gacha-box, .list-box { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ffcc00; }
+        .hidden { display: none; }
         
-        /* ボタン */
-        .primary-btn { padding: 12px 25px; background: #007bff; color: white; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; transition: background 0.3s; }
-        .primary-btn:hover { background: #0056b3; }
-        .primary-btn:disabled { background: #ccc; cursor: wait; }
-
-        /* ガチャ結果 */
-        .rank-ssr { color: #d4af37; font-size: 2.5em; font-weight: bold; text-shadow: 1px 1px 0 #000; }
-        .rank-sr  { color: #c0c0c0; font-size: 2em; font-weight: bold; }
-        .rank-r   { color: #cd7f32; font-size: 1.5em; font-weight: bold; }
-
-        /* 候補リスト */
-        .candidate-card { border: 1px solid #eee; padding: 12px; margin-bottom: 10px; text-align: left; display: flex; justify-content: space-between; align-items: center; background: #fafafa; border-radius: 5px; }
-        .vote-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .vote-btn:hover { background: #c82333; }
-        .vote-btn:disabled { background: #e2e6ea; color: #6c757d; cursor: wait; }
+        .status-badge { background: #ffcc00; color: #333; padding: 5px 10px; border-radius: 15px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
         
-        /* 結果グラフ */
-        .result-row { margin-bottom: 15px; text-align: left; }
-        .result-bar-bg { background: #f0f0f0; height: 20px; border-radius: 10px; overflow: hidden; margin-top: 5px; }
-        .result-bar-fill { background: #28a745; height: 100%; width: 0%; transition: width 1s ease-in-out; }
-        .result-text { font-weight: bold; display: flex; justify-content: space-between; font-size: 0.9em; }
-
-        .loading-text { display: inline-block; animation: blink 1.5s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        /* ガチャ演出 */
+        .gacha-ball { width: 80px; height: 80px; line-height: 80px; border-radius: 50%; font-weight: bold; color: white; margin: 20px auto; font-size: 2em; box-shadow: 0 4px 10px rgba(0,0,0,0.3); animation: pop 0.5s ease-out; }
+        .ball-SSR { background: gold; border: 4px solid orange; color: #a05a00; }
+        .ball-SR { background: silver; border: 4px solid gray; color: #333; }
+        .ball-R { background: #cd7f32; border: 4px solid #8b4513; color: white; }
+        @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        
+        input { padding: 10px; font-size: 1.2em; width: 80%; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #ff9900; color: white; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        .candidate-card { border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .vote-btn { background: #dc3545; color: white; border: none; padding: 5px 15px; border-radius: 3px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <h2>Fanbox 投票所</h2>
-
-    <div class="notice-box">
-        <strong>【投票のルール】</strong>
-        <ul>
-            <li>投票は期間中、<span class="important">お一人様1回限り</span>です。</li>
-            <li>手動で運用・集計を行っているため、連打やイタズラはお控えください。</li>
-            <li>重複投票が確認された場合、集計対象から除外される可能性があります。</li>
-        </ul>
+    <h2>🗳️ 支援者限定 ガチャ投票所</h2>
+    
+    <div class="top-link">
+        <a href="result.html" target="_blank">📊 現在の順位を確認する</a>
     </div>
 
-    <div id="login-section">
-        <p>Pixiv IDを入力してください。</p>
-        <input type="number" id="pixiv-id-input" placeholder="Pixiv ID (数値)">
+    <div id="login-section" class="login-box">
+        <p>Pixiv IDを入力してください</p>
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID">
         <br>
-        <button id="check-btn" class="primary-btn">確認してガチャへ</button>
-        <div style="margin-top: 10px;">
-            <a href="#" id="clear-id-link" style="font-size:0.9em; color:#666; display:none;">別のIDを入力する</a>
+        <button id="check-btn">ログインして状態確認</button>
+    </div>
+
+    <div id="vote-section" class="gacha-box hidden">
+        <div class="status-badge">残り投票回数: <span id="remain-count">0</span> / 5</div>
+        
+        <h3>ガチャを引いて投票しよう！</h3>
+        <p>下のボタンを押して、今回の投票パワー(票数)を決定します。</p>
+        <button id="pull-btn">🎁 ガチャを引く！</button>
+
+        <div id="result-area" class="hidden">
+            <div id="gacha-ball-display"></div>
+            <p style="font-size:1.2em;">今回は <strong><span id="current-weight" style="color:red; font-size:1.5em;"></span> 票</strong> として投票できます！</p>
+            <hr>
+            <p>投票先を選んでください（リストはランダム順）</p>
+            <div id="candidates-list"></div>
         </div>
-        <p id="login-msg" style="color:red; margin-top:10px;"></p>
     </div>
 
-    <div id="gacha-section" class="hidden">
-        <h3>抽選結果</h3>
-        <div id="rank-display"></div>
-        <p>あなたの持ち票: <span id="weight-display" style="font-weight:bold; font-size:1.5em;"></span> 票</p>
-    </div>
-
-    <div id="voting-section" class="hidden">
-        <p>投票先を選んでください（クリックで確定）</p>
-        <div id="candidates-list"></div>
-    </div>
-
-    <div id="result-section" class="hidden">
-        <h3 style="color:#28a745;">投票ありがとうございました！</h3>
-        <p>現在の集計結果（リアルタイム）</p>
-        <div id="ranking-list"></div>
-        <button onclick="location.reload()" class="primary-btn" style="margin-top:20px;">最新情報に更新</button>
+    <div id="done-section" class="list-box hidden">
+        <h3>🎉 投票完了 🎉</h3>
+        <p>本日の投票権（5回分）をすべて使い切りました！<br>ありがとうございました！</p>
+        <button onclick="location.href='result.html'">結果を見る</button>
     </div>
 
     <script>
-        // ★★★ 下記のURLを、ご自身のGASウェブアプリURLに書き換えてください ★★★
+        // ★GAS URL★
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec";
-
-
         let currentUser = null;
+        let candidatesData = [];
 
-        // 初期化 & 自動ログイン
+        // 自動ログイン
         document.addEventListener('DOMContentLoaded', () => {
-            const savedInfo = localStorage.getItem('gacha_user_info');
-            if (savedInfo) {
-                try {
-                    const info = JSON.parse(savedInfo);
-                    if (info.pixiv_id) {
-                        document.getElementById('pixiv-id-input').value = info.pixiv_id;
-                        // 自動ログイン実行
-                        verifyPixivId(info.pixiv_id, true);
-                    }
-                } catch(e) {}
+            const savedId = localStorage.getItem('supporter_pid');
+            if(savedId) {
+                document.getElementById('pixiv-id').value = savedId;
             }
         });
 
-        // ボタンクリック時
-        document.getElementById('check-btn').addEventListener('click', () => {
-            const pid = document.getElementById('pixiv-id-input').value.trim();
-            if (!pid) {
-                document.getElementById('login-msg').innerText = "Pixiv IDを入力してください";
-                return;
-            }
-            verifyPixivId(pid, false);
-        });
-
-        // IDクリアリンク
-        document.getElementById('clear-id-link').addEventListener('click', (e) => {
-            e.preventDefault();
-            localStorage.removeItem('gacha_user_info');
-            document.getElementById('pixiv-id-input').value = '';
-            document.getElementById('login-msg').innerText = "ID情報をクリアしました。";
-            document.getElementById('clear-id-link').style.display = 'none';
-        });
-
-        // サーバー問い合わせ
-        async function verifyPixivId(pid, isAuto) {
+        // ログイン＆状態確認
+        document.getElementById('check-btn').addEventListener('click', async () => {
+            const pid = document.getElementById('pixiv-id').value;
+            if(!pid) return alert("IDを入力してください");
+            
             const btn = document.getElementById('check-btn');
-            const msg = document.getElementById('login-msg');
-
-            btn.disabled = true;
-            btn.innerHTML = '<span class="loading-text">確認中...</span>';
-            msg.innerText = isAuto ? "自動ログイン中..." : "";
-
+            btn.disabled = true; btn.innerText = "確認中...";
+            
             try {
-                localStorage.setItem('gacha_user_info', JSON.stringify({ pixiv_id: pid }));
-                document.getElementById('clear-id-link').style.display = 'inline-block';
-
+                localStorage.setItem('supporter_pid', pid);
                 const res = await fetch(`${GAS_API_URL}?pixiv_id=${pid}`);
                 const json = await res.json();
-
-                if (json.status === 'success') {
+                
+                if(json.status === 'success') {
                     currentUser = json.data.user;
-                    const candidates = json.data.candidates;
-                    const results = json.data.results;
-
+                    candidatesData = json.data.candidates;
+                    
                     document.getElementById('login-section').classList.add('hidden');
-
-                    if (currentUser.has_voted) {
-                        // 投票済み -> 結果画面へ
-                        document.getElementById('result-section').classList.remove('hidden');
-                        renderResults(results);
+                    
+                    if (currentUser.is_fully_voted) {
+                        // 完了済み
+                        document.getElementById('done-section').classList.remove('hidden');
                     } else {
-                        // 未投票 -> ガチャ画面へ
-                        document.getElementById('gacha-section').classList.remove('hidden');
-                        document.getElementById('voting-section').classList.remove('hidden');
-                        showGachaResult(currentUser);
-                        renderCandidates(candidates);
+                        // 投票可能
+                        setupVoteScreen();
                     }
                 } else {
-                    msg.innerText = json.message;
-                    btn.disabled = false;
-                    btn.innerText = "確認してガチャへ";
+                    alert(json.message);
+                    btn.disabled = false; btn.innerText = "ログイン";
                 }
-            } catch (e) {
-                console.error(e);
-                msg.innerText = "通信エラーが発生しました。";
-                btn.disabled = false;
-                btn.innerText = "確認してガチャへ";
+            } catch(e) {
+                alert("通信エラー");
+                btn.disabled = false; btn.innerText = "ログイン";
             }
+        });
+
+        function setupVoteScreen() {
+            const remain = currentUser.max_votes - currentUser.vote_count;
+            document.getElementById('remain-count').innerText = remain;
+            document.getElementById('vote-section').classList.remove('hidden');
+            
+            // ガチャボタン設定
+            document.getElementById('pull-btn').onclick = () => {
+                playGacha(currentUser.next_gacha);
+            };
         }
 
-        // 描画関数群
-        function showGachaResult(user) {
-            const rankDiv = document.getElementById('rank-display');
-            document.getElementById('weight-display').innerText = user.gacha_weight;
-            rankDiv.className = `rank-${user.gacha_rank.toLowerCase()}`;
-            rankDiv.innerText = user.gacha_rank; 
+        function playGacha(result) {
+            document.getElementById('pull-btn').classList.add('hidden'); // ボタン消す
+            const area = document.getElementById('result-area');
+            area.classList.remove('hidden');
+            
+            // 玉の表示
+            const ball = document.getElementById('gacha-ball-display');
+            ball.className = `gacha-ball ball-${result.rank}`;
+            ball.innerText = result.rank;
+            
+            document.getElementById('current-weight').innerText = result.weight;
+
+            // リスト表示（シャッフル）
+            const shuffled = shuffleArray([...candidatesData]);
+            renderList(shuffled, result.weight);
         }
 
-        function renderCandidates(list) {
+        // シャッフル関数
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function renderList(list, weight) {
             const container = document.getElementById('candidates-list');
             container.innerHTML = "";
             list.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'candidate-card';
                 div.innerHTML = `
-                    <div style="flex-grow:1; margin-right:10px;">
-                        <strong>${esc(item.character)}</strong><br>
-                        <small style="color:#666;">${esc(item.theme)}</small>
-                    </div>
-                    <button class="vote-btn" onclick="submitVote(this, '${item.id}', '${esc(item.character)}')">投票</button>
+                    <div style="text-align:left;"><strong>${item.character}</strong><br><small>${item.theme}</small></div>
+                    <button class="vote-btn" onclick="submitVote('${item.id}', '${item.character}', ${weight})">投票</button>
                 `;
                 container.appendChild(div);
             });
         }
 
-        function renderResults(ranking) {
-            const container = document.getElementById('ranking-list');
-            if (!container) return;
+        async function submitVote(targetId, charName, weight) {
+            if(!confirm(`「${charName}」に ${weight}票 を投票しますか？`)) return;
             
-            container.innerHTML = "";
-            
-            if (!ranking || ranking.length === 0) {
-                container.innerHTML = "<p>まだ投票がありません。</p>";
-                return;
-            }
-
-            const maxVote = ranking[0].count > 0 ? ranking[0].count : 1;
-
-            ranking.forEach((item, index) => {
-                const percent = (item.count / maxVote) * 100;
-                const div = document.createElement('div');
-                div.className = 'result-row';
-                div.innerHTML = `
-                    <div class="result-text">
-                        <span>${index + 1}位. ${esc(item.character)} (${esc(item.theme)})</span>
-                        <span>${item.count}票</span>
-                    </div>
-                    <div class="result-bar-bg">
-                        <div class="result-bar-fill" style="width: ${percent}%;"></div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        // -----------------------------------
-        // 投票送信処理（ここを修正しました）
-        // -----------------------------------
-        window.submitVote = async (btnElement, targetId, charName) => {
-            if (!confirm(`「${charName}」に投票しますか？\n（${currentUser.gacha_weight}票が入ります）`)) return;
-
+            // 連打防止
             const allBtns = document.querySelectorAll('.vote-btn');
             allBtns.forEach(b => b.disabled = true);
-            const originalText = btnElement.innerText;
-            btnElement.innerText = "送信中...";
 
             try {
-                // ★ここでIPアドレスを取得する処理を追加★
-                const ip = await getIpAddress();
-
                 const payload = {
-                    action: 'submit_vote',
+                    action: 'submit_vote_supporter',
                     pixiv_id: currentUser.pixiv_id,
                     target_request_id: targetId,
-                    weight: currentUser.gacha_weight,
-                    user_agent: navigator.userAgent,
-                    ip_address: ip // ★ここに追加★
+                    ip_address: await getIp(),
+                    user_agent: navigator.userAgent
                 };
-
-                const res = await fetch(GAS_API_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
+                
+                const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
                 const json = await res.json();
                 
-                if (json.status === 'success') {
-                    alert("投票しました！結果画面へ移動します。");
-                    location.reload(); 
+                if(json.status === 'success') {
+                    alert("投票完了！\n(次の投票へ進むためリロードします)");
+                    location.reload(); // リロードして次のガチャへ
                 } else {
-                    alert("エラー: " + json.message);
-                    allBtns.forEach(b => b.disabled = false);
-                    btnElement.innerText = originalText;
+                    alert(json.message);
+                    location.reload();
                 }
-            } catch (e) {
-                alert("送信エラーが発生しました。");
-                allBtns.forEach(b => b.disabled = false);
-                btnElement.innerText = originalText;
-            }
-        };
-
-        // --- ユーティリティ ---
-
-        // ★この関数が抜けていました★
-        async function getIpAddress() {
-            try {
-                const res = await fetch('https://api.ipify.org?format=json');
-                const data = await res.json();
-                return data.ip;
-            } catch (e) {
-                console.warn("IP取得失敗:", e);
-                return "unknown";
-            }
+            } catch(e) { alert("送信エラー"); location.reload(); }
         }
-
-        function esc(s) { return s ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : ""; }
+        
+        async function getIp() { try { const r = await fetch('https://api.ipify.org?format=json'); return (await r.json()).ip; } catch { return ''; } }
     </script>
 </body>
 </html>
