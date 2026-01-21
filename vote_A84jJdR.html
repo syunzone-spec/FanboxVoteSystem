@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>【支援者限定】ガチャ投票所</title>
+    <title>【支援者限定】投票所</title>
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; background: #fffaf0; }
         
@@ -28,11 +28,14 @@
         
         .candidate-card { border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
         .vote-btn { background: #dc3545; color: white; border: none; padding: 5px 15px; border-radius: 3px; cursor: pointer; }
+
+        /* ログアウトボタン（控えめに配置） */
+        .logout-link { display: block; margin-top: 10px; font-size: 0.8em; color: #999; text-decoration: underline; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <h2>🗳️ 支援者限定 ガチャ投票所</h2>
+    <h2>🗳️ 支援者限定投票所</h2>
     
     <div class="top-link">
         <a href="result.html" target="_blank">📊 現在の順位を確認する</a>
@@ -45,12 +48,15 @@
         <button id="check-btn">ログインして状態確認</button>
     </div>
 
+    <div id="loading-msg" class="hidden" style="margin-bottom:20px; color:#666;">
+        認証中...
+    </div>
+
     <div id="vote-section" class="gacha-box hidden">
-        <div class="status-badge">残り投票回数: <span id="remain-count">0</span> / 5</div>
+        <div class="status-badge">残り投票回数: <span id="remain-count">0</span> / <span id="max-count">0</span></div>
         
-        <h3>ガチャを引いて投票しよう！</h3>
-        <p>下のボタンを押して、今回の投票パワー(票数)を決定します。</p>
-        <button id="pull-btn">🎁 ガチャを引く！</button>
+        <p>下のボタンを押して、今回の票数を決定します。</p>
+        <button id="pull-btn">抽選開始</button>
 
         <div id="result-area" class="hidden">
             <div id="gacha-ball-display"></div>
@@ -59,12 +65,16 @@
             <p>投票先を選んでください（リストはランダム順）</p>
             <div id="candidates-list"></div>
         </div>
+
+        <div class="logout-link" onclick="logout()">IDを変更する（ログアウト）</div>
     </div>
 
     <div id="done-section" class="list-box hidden">
         <h3>🎉 投票完了 🎉</h3>
-        <p>本日の投票権（5回分）をすべて使い切りました！<br>ありがとうございました！</p>
+        <p>今回の投票権をすべて使い切りました！<br>ありがとうございました！</p>
         <button onclick="location.href='result.html'">結果を見る</button>
+        
+        <div class="logout-link" onclick="logout()">IDを変更する（ログアウト）</div>
     </div>
 
     <script>
@@ -73,32 +83,46 @@
         let currentUser = null;
         let candidatesData = [];
 
-        // 自動ログイン
+        // ページ読み込み時に自動ログインを試みる
         document.addEventListener('DOMContentLoaded', () => {
             const savedId = localStorage.getItem('supporter_pid');
             if(savedId) {
+                // IDがあれば自動ログイン実行
                 document.getElementById('pixiv-id').value = savedId;
+                performLogin(savedId);
             }
         });
 
-        // ログイン＆状態確認
-        document.getElementById('check-btn').addEventListener('click', async () => {
+        // ボタンクリックでもログイン
+        document.getElementById('check-btn').addEventListener('click', () => {
             const pid = document.getElementById('pixiv-id').value;
             if(!pid) return alert("IDを入力してください");
-            
+            performLogin(pid);
+        });
+
+        // 共通ログイン処理
+        async function performLogin(pid) {
+            const loginBox = document.getElementById('login-section');
+            const loadingMsg = document.getElementById('loading-msg');
             const btn = document.getElementById('check-btn');
-            btn.disabled = true; btn.innerText = "確認中...";
-            
+
+            // UI操作: ログイン窓を隠して「認証中」を出す
+            loginBox.classList.add('hidden');
+            loadingMsg.classList.remove('hidden');
+            btn.disabled = true;
+
             try {
+                // 保存
                 localStorage.setItem('supporter_pid', pid);
+                
                 const res = await fetch(`${GAS_API_URL}?pixiv_id=${pid}`);
                 const json = await res.json();
                 
+                loadingMsg.classList.add('hidden'); // 認証中を消す
+
                 if(json.status === 'success') {
                     currentUser = json.data.user;
                     candidatesData = json.data.candidates;
-                    
-                    document.getElementById('login-section').classList.add('hidden');
                     
                     if (currentUser.is_fully_voted) {
                         // 完了済み
@@ -108,18 +132,25 @@
                         setupVoteScreen();
                     }
                 } else {
+                    // エラー時（ID間違いなど）はログイン画面に戻す
                     alert(json.message);
-                    btn.disabled = false; btn.innerText = "ログイン";
+                    loginBox.classList.remove('hidden');
+                    btn.disabled = false;
+                    // 間違いかもしれないのでストレージを消しておく
+                    localStorage.removeItem('supporter_pid'); 
                 }
             } catch(e) {
-                alert("通信エラー");
-                btn.disabled = false; btn.innerText = "ログイン";
+                alert("通信エラーが発生しました");
+                loadingMsg.classList.add('hidden');
+                loginBox.classList.remove('hidden');
+                btn.disabled = false;
             }
-        });
+        }
 
         function setupVoteScreen() {
             const remain = currentUser.max_votes - currentUser.vote_count;
             document.getElementById('remain-count').innerText = remain;
+            document.getElementById('max-count').innerText = currentUser.max_votes; // 分母
             document.getElementById('vote-section').classList.remove('hidden');
             
             // ガチャボタン設定
@@ -129,23 +160,20 @@
         }
 
         function playGacha(result) {
-            document.getElementById('pull-btn').classList.add('hidden'); // ボタン消す
+            document.getElementById('pull-btn').classList.add('hidden'); 
             const area = document.getElementById('result-area');
             area.classList.remove('hidden');
             
-            // 玉の表示
             const ball = document.getElementById('gacha-ball-display');
             ball.className = `gacha-ball ball-${result.rank}`;
             ball.innerText = result.rank;
             
             document.getElementById('current-weight').innerText = result.weight;
 
-            // リスト表示（シャッフル）
             const shuffled = shuffleArray([...candidatesData]);
             renderList(shuffled, result.weight);
         }
 
-        // シャッフル関数
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -171,7 +199,6 @@
         async function submitVote(targetId, charName, weight) {
             if(!confirm(`「${charName}」に ${weight}票 を投票しますか？`)) return;
             
-            // 連打防止
             const allBtns = document.querySelectorAll('.vote-btn');
             allBtns.forEach(b => b.disabled = true);
 
@@ -180,6 +207,7 @@
                     action: 'submit_vote_supporter',
                     pixiv_id: currentUser.pixiv_id,
                     target_request_id: targetId,
+                    total_weight: weight, // ※GAS側の変数名に合わせて送る（ここは以前のままでOK）
                     ip_address: await getIp(),
                     user_agent: navigator.userAgent
                 };
@@ -188,16 +216,27 @@
                 const json = await res.json();
                 
                 if(json.status === 'success') {
-                    alert("投票完了！\n(次の投票へ進むためリロードします)");
-                    location.reload(); // リロードして次のガチャへ
+                    alert("投票完了！\n(次の投票へ進みます)");
+                    location.reload(); 
                 } else {
                     alert(json.message);
                     location.reload();
                 }
-            } catch(e) { alert("送信エラー"); location.reload(); }
+            } catch(e) { 
+                alert("送信エラー"); 
+                location.reload(); 
+            }
         }
         
         async function getIp() { try { const r = await fetch('https://api.ipify.org?format=json'); return (await r.json()).ip; } catch { return ''; } }
+
+        // ログアウト処理
+        function logout() {
+            if(confirm("ログアウトしますか？（次回ID入力が必要になります）")) {
+                localStorage.removeItem('supporter_pid');
+                location.reload();
+            }
+        }
     </script>
 </body>
 </html>
