@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>リクエスト投票所</title>
-    <meta property="og:title" content="リクエスト投票所">
+    <meta property="og:title" content="リクエス投票所">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/vote_public.html">
     <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/vote_public.png">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="リクエスト投票所">
     <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/vote_public.png">
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; }
@@ -48,6 +50,11 @@
             try {
                 const res = await fetch(`${GAS_API_URL}?mode=public_vote`);
                 const json = await res.json();
+
+		if (json.status === 'maintenance') {
+		    document.body.innerHTML = `<div style="text-align:center; padding:50px;"><h2>🚧 メンテナンス中</h2><p>現在メンテナンスのため停止しています。</p></div>`;
+		    return;
+		}
                 
                 // リストをシャッフルしてから表示
                 const shuffled = shuffleArray(json.data.candidates);
@@ -102,7 +109,14 @@
                 if (json.status === 'success') {
                     alert("投票しました！");
                     location.href = 'result.html'; 
-                } else {
+		} else if (json.status === 'maintenance') {
+		    // ▼ メンテナンス画面への切り替え
+		    document.body.innerHTML = `
+		        <div style="text-align:center; padding:50px; color:#555;">
+		            <h2 style="color:#d9534f;">🚧 メンテナンス中</h2>
+		            <p>${json.message.replace(/\n/g, '<br>')}</p>
+		        </div>`;
+		} else {
                     alert(json.message);
                     btns.forEach(b => b.disabled = false);
                 }
@@ -120,5 +134,4 @@
         }
     </script>
 </body>
-
 </html>
