@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>差分リクエスト</title>
+    
+    <meta property="og:title" content="差分リクエスト">
+    <meta property="og:description" content="イラストの差分のリクエストを行うフォームです。">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; background-color: #f4f7f6; line-height: 1.6; }
+        h2 { color: #28a745; margin-bottom: 20px; }
+        .box { background: white; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: left; }
+        .login-box { border-top: 5px solid #ffc107; text-align: center; }
+        .req-box { border-top: 5px solid #28a745; }
+        
+        label { display: block; font-weight: bold; margin-bottom: 5px; margin-top: 10px; }
+        input, select { width: 100%; padding: 12px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        
+        button { width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; border-radius: 4px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        .hidden { display: none; }
+        .error-msg { color: #dc3545; background: #ffe6e6; padding: 10px; border-radius: 4px; margin-top: 10px; display:none; }
+        .logout-link { display: block; margin-top: 30px; font-size: 0.85em; color: #999; text-decoration: underline; cursor: pointer; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <h2>🗳️ 差分リクエスト</h2>
+
+    <div id="login-section" class="box login-box">
+        <h3>支援者認証</h3>
+        <p style="font-size:0.9em; color:#666;">Fanboxの支援者IDと合言葉を入力してください。</p>
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)">
+        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名">
+        <input type="text" id="monthly-pass" placeholder="今月の合言葉">
+        <button id="login-btn" style="background-color:#ffc107; color:#333;">認証して進む</button>
+        <div id="login-error" class="error-msg"></div>
+    </div>
+
+    <div id="main-area" class="hidden">
+        <div class="box req-box">
+            <h3>新しい案をリクエスト</h3>
+            <p style="font-size:0.85em; color:#666;">ほぼ書き直しが必要など、<BR>対応が難しい物は反映できない可能性がありますのでご注意ください。</p>
+            
+            <h3>📝 差分をリクエスト</h3>
+            
+            <label>対象イラスト（リストから選択：試験運用のため、現在固定です。）</label>
+            <select id="req-subject">
+                <option value="">読み込み中...</option>
+            </select>
+
+            <label>差分内容（50文字以内）</label>
+            <input type="text" id="req-content" maxlength="50" placeholder="例: 胸露出、鼻フック、アヘ顔、ぶっかけ 等">
+            
+            <button id="req-submit-btn" class="btn-green">リクエストを投稿</button>
+
+        </div>
+        <div class="logout-link" onclick="logout()">ログアウト</div>
+    </div>
+
+    <script>
+        // ★GAS URL
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            getOrCreateUUID();
+            const pid = localStorage.getItem('supporter_pid');
+            const pass = localStorage.getItem('supporter_pass');
+            const name = localStorage.getItem('supporter_name');
+            if(pid && pass) {
+                document.getElementById('pixiv-id').value = pid;
+                document.getElementById('monthly-pass').value = pass;
+                if(name) document.getElementById('pixiv-name').value = name;
+                doLogin(pid, pass, name);
+            }
+        });
+
+        document.getElementById('login-btn').onclick = () => {
+            const pid = document.getElementById('pixiv-id').value;
+            const pass = document.getElementById('monthly-pass').value;
+            const name = document.getElementById('pixiv-name').value;
+            if(!pid || !pass) return alert("IDと合言葉を入力してください");
+            doLogin(pid, pass, name);
+        };
+
+        async function doLogin(pid, pass, name) {
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true; btn.innerText = "認証中...";
+            try {
+                localStorage.setItem('supporter_pid', pid);
+                localStorage.setItem('supporter_pass', pass);
+                if(name) localStorage.setItem('supporter_name', name);
+
+                const res = await fetch(`${GAS_API_URL}?mode=variant_init&pixiv_id=${pid}&password=${encodeURIComponent(pass)}`);
+                const json = await res.json();
+
+                if(json.status === 'success') {
+                    // プルダウン生成
+                    const sel = document.getElementById('req-subject');
+                    sel.innerHTML = '<option value="" disabled selected>選択してください</option>';
+                    json.data.subjects.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s; opt.innerText = s; sel.appendChild(opt);
+                    });
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('main-area').classList.remove('hidden');
+		} else if (json.status === 'maintenance') {
+		   // 画面全体をメンテナンス表示に書き換え
+		   document.body.innerHTML = `
+		       <div style="text-align:center; padding:50px; font-family:sans-serif;">
+		           <h2 style="color:#ffc107;">🚧 MAINTENANCE</h2>
+		           <p>${json.message.replace(/\n/g, '<br>')}</p>
+		       </div>`;
+		   return;
+		} else {
+                    alert(json.message);
+                    if(json.message.includes('認証')) localStorage.removeItem('supporter_pass');
+                }
+            } catch(e) { alert("通信エラー"); } finally { btn.disabled = false; btn.innerText = "認証して進む"; }
+        }
+
+        document.getElementById('req-submit-btn').onclick = async () => {
+            const subject = document.getElementById('req-subject').value;
+            const content = document.getElementById('req-content').value;
+            if(!subject || !content) return alert("入力内容を確認してください");
+            if(!confirm("この内容で送信しますか？\n(送信後は承認待ちとなります)")) return;
+
+            const btn = document.getElementById('req-submit-btn');
+            btn.disabled = true; btn.innerText = "送信中...";
+
+            try {
+                const ip = await getIpAddress();
+                const payload = {
+                    action: 'submit_variant_request',
+                    pixiv_id: localStorage.getItem('supporter_pid'),
+                    password: localStorage.getItem('supporter_pass'),
+                    nickname: localStorage.getItem('supporter_name') || '名無し',
+                    subject: subject,
+                    content: content,
+                    ip_address: ip,
+                    user_agent: navigator.userAgent,
+                    device_uuid: getOrCreateUUID(),
+                    screen_info: `${window.screen.width}x${window.screen.height}`
+                };
+                const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const json = await res.json();
+                if(json.status === 'success') {
+                    alert("リクエストを受け付けました！\n管理者の確認後にリストに追加されます。");
+                    document.getElementById('req-content').value = "";
+                } else {
+                    alert("エラー: " + json.message);
+                }
+            } catch(e) { alert("送信エラー"); } finally { btn.disabled = false; btn.innerText = "リクエストを送信"; }
+        };
+
+        async function getIpAddress() { try { const r = await fetch('https://api.ipify.org?format=json'); return (await r.json()).ip; } catch { return "unknown"; } }
+        function getOrCreateUUID() {
+            const KEY = 'gacha_device_uuid';
+            let u = localStorage.getItem(KEY);
+            if (!u) { u = crypto.randomUUID(); localStorage.setItem(KEY, u); } return u;
+        }
+        function logout() { if(confirm("ログアウトしますか？")) { localStorage.clear(); location.reload(); } }
+    </script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>差分投票</title>
+    <meta property="og:title" content="差分投票">
+    <meta property="og:description" content="差分の投票所です。">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; color: #333; background-color: #f4f7f6; line-height: 1.6; }
+        h2 { color: #007bff; margin-bottom: 20px; }
+        .box { background: white; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: left; }
+        .login-box { border-top: 5px solid #ffc107; text-align: center; }
+        .vote-box { border-top: 5px solid #007bff; }
+
+        input { width: 100%; padding: 12px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        .hidden { display: none; }
+        .error-msg { color: #dc3545; background: #ffe6e6; padding: 10px; display: none; }
+        
+        .candidate-card { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+        .card-info { flex: 1; margin-right: 10px; }
+        .badge { display: inline-block; background: #e9ecef; color: #495057; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; margin-bottom: 4px; font-weight: bold; }
+        .v-btn { width: auto; padding: 8px 16px; font-size: 0.9em; margin-top: 0; background-color: #dc3545; }
+        .v-btn:hover { background-color: #c82333; }
+
+        .logout-link { display: block; margin-top: 30px; font-size: 0.85em; color: #999; text-decoration: underline; cursor: pointer; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <h2>🗳️ 差分投票所</h2>
+
+    <div id="login-section" class="box login-box">
+        <h3>支援者認証</h3>
+        <p style="font-size:0.9em; color:#666;">Fanboxの支援者IDと合言葉を入力してください。</p>
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)">
+        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名 (集計用)">
+        <input type="text" id="monthly-pass" placeholder="今月の合言葉">
+        <button id="login-btn" style="background-color:#ffc107; color:#333;">認証して進む</button>
+        <div id="login-error" class="error-msg"></div>
+    </div>
+
+    <div id="main-area" class="hidden">
+        <div class="box vote-box">
+            <h3>🗳️ 差分投票</h3>
+            <p style="text-align:center; margin-bottom:15px;">
+                残り投票回数: <strong style="font-size:1.2em;"><span id="remain-count">-</span> / <span id="max-count">-</span></strong>
+            </p>
+
+            <div id="gacha-area">
+                <p style="font-size:0.9em; color:#666; text-align:center;">下のボタンを押して、今回の票数を決定します。</p>
+                <button id="gacha-btn">抽抽選開始</button>
+            </div>
+            
+            <div id="vote-list-area" class="hidden" style="margin-top:20px;">
+                <div style="background:#fff3cd; color:#856404; padding:10px; border-radius:5px; text-align:center; margin-bottom:15px;">
+                    今回は <strong style="font-size:1.4em; color:#d39e00;"><span id="current-weight">0</span> 票</strong>
+                </div>
+                <p style="font-size:0.9em; text-align:center;">投票先を選んでください（順不同）</p>
+                <div id="candidates-list"></div>
+            </div>
+        </div>
+        <div class="logout-link" onclick="logout()">ログアウト</div>
+    </div>
+
+    <script>
+        // ★GAS URL
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec";
+
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            getOrCreateUUID();
+            const pid = localStorage.getItem('supporter_pid');
+            const pass = localStorage.getItem('supporter_pass');
+            const name = localStorage.getItem('supporter_name');
+            if(pid && pass) {
+                document.getElementById('pixiv-id').value = pid;
+                document.getElementById('monthly-pass').value = pass;
+                if(name) document.getElementById('pixiv-name').value = name;
+                doLogin(pid, pass, name);
+            }
+        });
+
+        document.getElementById('login-btn').onclick = () => {
+            const pid = document.getElementById('pixiv-id').value;
+            const pass = document.getElementById('monthly-pass').value;
+            const name = document.getElementById('pixiv-name').value;
+            if(!pid || !pass) return alert("IDと合言葉を入力してください");
+            doLogin(pid, pass, name);
+        };
+
+        async function doLogin(pid, pass, name) {
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true; btn.innerText = "認証中...";
+            try {
+                localStorage.setItem('supporter_pid', pid);
+                localStorage.setItem('supporter_pass', pass);
+                if(name) localStorage.setItem('supporter_name', name);
+
+                const res = await fetch(`${GAS_API_URL}?mode=variant_init&pixiv_id=${pid}&password=${encodeURIComponent(pass)}`);
+                const json = await res.json();
+
+                if(json.status === 'success') {
+                    currentUser = json.data.user;
+                    renderMainArea(json.data);
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('main-area').classList.remove('hidden');
+		} else if (json.status === 'maintenance') {
+		   // 画面全体をメンテナンス表示に書き換え
+		   document.body.innerHTML = `
+		       <div style="text-align:center; padding:50px; font-family:sans-serif;">
+		           <h2 style="color:#ffc107;">🚧 MAINTENANCE</h2>
+		           <p>${json.message.replace(/\n/g, '<br>')}</p>
+		       </div>`;
+		   return;
+		} else {
+                    alert(json.message);
+                    if(json.message.includes('認証')) localStorage.removeItem('supporter_pass');
+                }
+            } catch(e) { alert("通信エラー"); } finally { btn.disabled = false; btn.innerText = "認証して進む"; }
+        }
+
+        function renderMainArea(data) {
+            const remain = currentUser.max_votes - currentUser.vote_count;
+            document.getElementById('remain-count').innerText = remain;
+            document.getElementById('max-count').innerText = currentUser.max_votes;
+            const gachaBtn = document.getElementById('gacha-btn');
+            if(currentUser.is_fully_voted) {
+                gachaBtn.disabled = true; gachaBtn.innerText = "🎉 投票完了しました";
+                gachaBtn.style.backgroundColor = "#6c757d";
+            } else {
+                gachaBtn.onclick = () => startVotePhase(data.candidates, currentUser.next_gacha);
+            }
+        }
+
+        function startVotePhase(list, gachaResult) {
+            document.getElementById('gacha-area').classList.add('hidden');
+            document.getElementById('vote-list-area').classList.remove('hidden');
+            document.getElementById('current-weight').innerText = gachaResult.weight;
+            const container = document.getElementById('candidates-list');
+            container.innerHTML = "";
+            
+            if(list.length === 0) {
+                container.innerHTML = "<p>現在投票可能な候補がありません。<br>管理者の更新をお待ちください。</p>";
+                return;
+            }
+
+            const shuffled = list.sort(() => Math.random() - 0.5);
+            shuffled.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'candidate-card';
+                div.innerHTML = `
+                    <div class="card-info">
+                        <span class="badge">${esc(item.character)}</span><br>
+                        <strong>${esc(item.theme)}</strong><br>
+                    </div>
+                    <button class="v-btn" onclick="submitVote('${item.id}', '${esc(item.theme)}', ${gachaResult.weight})">投票</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function submitVote(targetId, themeName, weight) {
+            if(!confirm(`「${themeName}」に ${weight}票 を入れますか？`)) return;
+            document.querySelectorAll('.v-btn').forEach(b => b.disabled = true);
+            try {
+                const ip = await getIpAddress();
+                const payload = {
+                    action: 'submit_vote_variant',
+                    pixiv_id: currentUser.pixiv_id,
+                    user_name: localStorage.getItem('supporter_name'),
+                    target_request_id: targetId,
+                    password: localStorage.getItem('supporter_pass'),
+                    device_uuid: getOrCreateUUID(),
+                    ip_address: ip,
+                    user_agent: navigator.userAgent
+                };
+                const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const json = await res.json();
+                if(json.status === 'success') { alert("投票しました！"); location.reload(); }
+                else { alert("エラー: " + json.message); location.reload(); }
+            } catch(e) { alert("通信エラー"); location.reload(); }
+        }
+
+        async function getIpAddress() { try { const r = await fetch('https://api.ipify.org?format=json'); return (await r.json()).ip; } catch { return "unknown"; } }
+        function getOrCreateUUID() {
+            const KEY = 'gacha_device_uuid';
+            let u = localStorage.getItem(KEY);
+            if (!u) { u = crypto.randomUUID(); localStorage.setItem(KEY, u); } return u;
+        }
+        function esc(s) { return s ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : ""; }
+        function logout() { if(confirm("ログアウトしますか？")) { localStorage.clear(); location.reload(); } }
+    </script>
+</body>
+</html>
