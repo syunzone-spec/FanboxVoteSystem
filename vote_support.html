@@ -42,10 +42,18 @@
     </div>
 
     <div id="login-section" class="login-box">
-        <p>Pixiv IDを入力してください</p>
-        <input type="number" id="pixiv-id" placeholder="Pixiv ID">
+        <p>Fanbox支援者認証</p>
+        
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)" style="margin-bottom:5px;">
         <br>
-        <button id="check-btn">ログインして状態確認</button>
+        
+        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名" style="margin-bottom:5px;">
+        <br>
+        
+        <input type="text" id="monthly-pass" placeholder="今月の合言葉" style="margin-bottom:10px;">
+        <br>
+        
+        <button id="check-btn">ログイン</button>
     </div>
 
     <div id="loading-msg" class="hidden" style="margin-bottom:20px; color:#666;">
@@ -78,68 +86,89 @@
     </div>
 
     <script>
-        // ★GAS URL★
+        // ★GAS URL（ご自身のものに書き換わっている前提です）
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzNarCkSJAZ4EcFLzKJESySKByFFsa-pAk2fDLZ-twdbIuKaqhDlnHwSZ7bkIoX1BCy6A/exec";
+        
         let currentUser = null;
         let candidatesData = [];
 
-        // ページ読み込み時に自動ログインを試みる
+        // ページ読み込み時
         document.addEventListener('DOMContentLoaded', () => {
             const savedId = localStorage.getItem('supporter_pid');
-            if(savedId) {
-                // IDがあれば自動ログイン実行
+            const savedName = localStorage.getItem('supporter_name');
+            const savedPass = localStorage.getItem('supporter_pass');
+            
+            if(savedId && savedPass) {
                 document.getElementById('pixiv-id').value = savedId;
-                performLogin(savedId);
+                document.getElementById('monthly-pass').value = savedPass;
+                if(savedName) document.getElementById('pixiv-name').value = savedName; 
+                
+                // 自動ログイン
+                performLogin(savedId, savedPass, savedName);
             }
         });
 
-        // ボタンクリックでもログイン
+        // ログインボタン押下時
         document.getElementById('check-btn').addEventListener('click', () => {
             const pid = document.getElementById('pixiv-id').value;
-            if(!pid) return alert("IDを入力してください");
-            performLogin(pid);
+            const name = document.getElementById('pixiv-name').value;
+            const pass = document.getElementById('monthly-pass').value;
+            
+            if(!pid) return alert("Pixiv IDを入力してください");
+            if(!name) return alert("ユーザー名を入力してください");
+            if(!pass) return alert("合言葉を入力してください");
+            
+            performLogin(pid, pass, name);
         });
 
-        // 共通ログイン処理
-        async function performLogin(pid) {
+        // ★修正点: 引数を3つ(pid, pass, name)受け取るように変更
+        async function performLogin(pid, pass, name) {
             const loginBox = document.getElementById('login-section');
             const loadingMsg = document.getElementById('loading-msg');
             const btn = document.getElementById('check-btn');
 
-            // UI操作: ログイン窓を隠して「認証中」を出す
             loginBox.classList.add('hidden');
             loadingMsg.classList.remove('hidden');
             btn.disabled = true;
 
             try {
-                // 保存
-                localStorage.setItem('supporter_pid', pid);
-                
-                const res = await fetch(`${GAS_API_URL}?pixiv_id=${pid}`);
+                // ★修正点: URLにパスワード(&password=...)を含めて送信
+                const res = await fetch(`${GAS_API_URL}?pixiv_id=${pid}&password=${encodeURIComponent(pass)}`);
                 const json = await res.json();
                 
-                loadingMsg.classList.add('hidden'); // 認証中を消す
+                loadingMsg.classList.add('hidden');
 
                 if(json.status === 'success') {
+                    // ★修正点: ログイン成功時に3点セットを保存
+                    localStorage.setItem('supporter_pid', pid);
+                    localStorage.setItem('supporter_pass', pass);
+                    if(name) localStorage.setItem('supporter_name', name);
+
                     currentUser = json.data.user;
                     candidatesData = json.data.candidates;
                     
                     if (currentUser.is_fully_voted) {
-                        // 完了済み
                         document.getElementById('done-section').classList.remove('hidden');
                     } else {
-                        // 投票可能
                         setupVoteScreen();
                     }
-                } else {
-                    // エラー時（ID間違いなど）はログイン画面に戻す
-                    alert(json.message);
+		} else if (json.status === 'maintenance') {
+		   // 画面全体をメンテナンス表示に書き換え
+		   document.body.innerHTML = `
+		       <div style="text-align:center; padding:50px; font-family:sans-serif;">
+		           <h2 style="color:#ffc107;">🚧 MAINTENANCE</h2>
+		           <p>${json.message.replace(/\n/g, '<br>')}</p>
+		       </div>`;
+		   return;
+		} else {
+                    alert(json.message); // 「合言葉が違います」などが表示される
                     loginBox.classList.remove('hidden');
                     btn.disabled = false;
-                    // 間違いかもしれないのでストレージを消しておく
                     localStorage.removeItem('supporter_pid'); 
+                    localStorage.removeItem('supporter_pass'); 
                 }
             } catch(e) {
+                console.error(e);
                 alert("通信エラーが発生しました");
                 loadingMsg.classList.add('hidden');
                 loginBox.classList.remove('hidden');
@@ -150,10 +179,9 @@
         function setupVoteScreen() {
             const remain = currentUser.max_votes - currentUser.vote_count;
             document.getElementById('remain-count').innerText = remain;
-            document.getElementById('max-count').innerText = currentUser.max_votes; // 分母
+            document.getElementById('max-count').innerText = currentUser.max_votes;
             document.getElementById('vote-section').classList.remove('hidden');
             
-            // ガチャボタン設定
             document.getElementById('pull-btn').onclick = () => {
                 playGacha(currentUser.next_gacha);
             };
@@ -203,13 +231,18 @@
             allBtns.forEach(b => b.disabled = true);
 
             try {
+                // ★修正点: 保存された名前を呼び出して送信データに含める
+                const storedName = localStorage.getItem('supporter_name') || '名無し';
+
                 const payload = {
                     action: 'submit_vote_supporter',
                     pixiv_id: currentUser.pixiv_id,
+                    user_name: storedName, // ここで送信
                     target_request_id: targetId,
-                    total_weight: weight, // ※GAS側の変数名に合わせて送る（ここは以前のままでOK）
+                    total_weight: weight,
                     ip_address: await getIp(),
-                    user_agent: navigator.userAgent
+                    user_agent: navigator.userAgent,
+		    device_uuid: getUUID()
                 };
                 
                 const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
@@ -230,12 +263,23 @@
         
         async function getIp() { try { const r = await fetch('https://api.ipify.org?format=json'); return (await r.json()).ip; } catch { return ''; } }
 
-        // ログアウト処理
         function logout() {
             if(confirm("ログアウトしますか？（次回ID入力が必要になります）")) {
                 localStorage.removeItem('supporter_pid');
+                localStorage.removeItem('supporter_pass');
+                localStorage.removeItem('supporter_name');
                 location.reload();
             }
+        }
+
+	function getUUID() {
+            let u = localStorage.getItem('g_uuid');
+            if(!u) { 
+                // UUID未生成なら新規作成して保存
+                u = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx'.replace(/[xy]/g, c => {var r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16);});
+                localStorage.setItem('g_uuid', u); 
+            }
+            return u;
         }
     </script>
 </body>
