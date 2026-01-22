@@ -47,13 +47,19 @@
         <div class="box req-box">
             <h3>新しい案をリクエスト</h3>
             <p style="font-size:0.85em; color:#666;">ほぼ書き直しが必要など、<BR>対応が難しい物は反映できない可能性がありますのでご注意ください。</p>
+            <p>期間中に同一HNから複数のリクエストがあった場合、<span class="important">最後に送信された内容のみを有効（後勝ち）</span>とします。修正したい場合は再度送信してください。</p>
             
             <h3>📝 差分をリクエスト</h3>
             
+            <!--
             <label>対象イラスト（リストから選択：試験運用のため、現在固定です。）</label>
             <select id="req-subject">
                 <option value="">読み込み中...</option>
             </select>
+	　　-->
+
+	    <label>対象イラスト</label>
+            <input type="text" id="req-subject" placeholder="例: 2025年6月投稿のマリア など" maxlength="30">
 
             <label>差分内容（50文字以内）</label>
             <input type="text" id="req-content" maxlength="50" placeholder="例: 胸露出、鼻フック、アヘ顔、ぶっかけ 等">
@@ -102,12 +108,14 @@
 
                 if(json.status === 'success') {
                     // プルダウン生成
+		   /*
                     const sel = document.getElementById('req-subject');
                     sel.innerHTML = '<option value="" disabled selected>選択してください</option>';
                     json.data.subjects.forEach(s => {
                         const opt = document.createElement('option');
                         opt.value = s; opt.innerText = s; sel.appendChild(opt);
                     });
+                    */
                     document.getElementById('login-section').classList.add('hidden');
                     document.getElementById('main-area').classList.remove('hidden');
 		} else if (json.status === 'maintenance') {
