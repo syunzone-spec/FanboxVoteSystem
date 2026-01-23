@@ -2,7 +2,7 @@
 // ⚙️ 設定エリア
 // ==================================================
 const SUPPORTER_MAX_VOTES = 5;       // 支援者の投票回数上限
-const MONTHLY_PASSWORD 	= "hibiki";   // 今月の合言葉
+const MONTHLY_PASSWORD 	= "";   // 今月の合言葉
 const WEIGHT_SSR = 30; // ガチャ SSR
 const WEIGHT_SR  = 10; // ガチャ SR
 const WEIGHT_R   = 2;  // ガチャ R
@@ -505,4 +505,5 @@ function getSystemKeyByMode(mode, action) {
   // ※doGet内で呼び出す際に手動で判定するため、ここは汎用的なもののみ
   return null; 
 }
+
 
