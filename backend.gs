@@ -46,12 +46,12 @@ function doGet(e) {
     sysKey = 'SYSTEM_PUBLIC';
   }
   // 2. 差分システム
-  else if (e.parameter.mode === 'variant_init') {
+  else if (e.parameter.mode === 'variant_init' || e.parameter.mode === 'variant_results') {
     sysKey = 'SYSTEM_VARIANT';
   }
   // 3. 支援者投票 (pixiv_idがある場合)
   else if (e.parameter.pixiv_id) {
-    sysKey = 'SYSTEM_SUPPORTER';
+   	sysKey = 'SYSTEM_SUPPORTER';
   }
 
   if (sysKey && !isSystemActive(sysKey)) {
@@ -68,6 +68,8 @@ function doGet(e) {
     });
   } else if (e.parameter.mode === 'variant_init') {
     return getVariantInitData(e); // 新設する関数へ丸投げ
+  } else if (e.parameter.mode === 'variant_results') {
+    return getVariantResultData(e);
   }
 
 
@@ -211,7 +213,7 @@ function saveVote(p, sheetName) {
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
   
   sheet.appendRow([
-    p.id, p.target_id, p.weight, p.voter_id, 
+    p.id, p.target_id, p.weight, String(p.voter_id), 
     p.ip || '', p.ua || '', p.uuid || '', 
     timestamp, true, p.note, p.pixivName 
   ]);
@@ -506,4 +508,43 @@ function getSystemKeyByMode(mode, action) {
   return null; 
 }
 
+// ==================================================
+// 🆕 差分システム：結果集計用
+// ==================================================
 
+// 差分結果データ取得 (variant_results) - 認証なし
+function getVariantResultData(e) {
+  // 認証チェックを削除しました
+  const candidates = getValidVariantRequests();
+  const results = aggregateVariantResults(candidates);
+
+  return createResponse({
+    status: 'success',
+    data: { results: results }
+  });
+}
+
+// 差分投票の集計処理
+function aggregateVariantResults(candidates) {
+  const sheet = SS.getSheetByName(SHEET_VARIANT_VOTES);
+  const counts = {};
+  
+  if (sheet.getLastRow() > 1) {
+    const values = sheet.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      // I列(index 8)が true (有効票) か確認
+      if (values[i][8] === true) {
+        const targetId = values[i][1];
+        const weight = Number(values[i][2]);
+        if (!counts[targetId]) counts[targetId] = 0;
+        counts[targetId] += weight;
+      }
+    }
+  }
+
+  return candidates.map(c => ({
+    character: c.character, // Subject
+    theme: c.theme,         // Content
+    count: counts[c.id] || 0 
+  })).sort((a, b) => b.count - a.count);
+}
