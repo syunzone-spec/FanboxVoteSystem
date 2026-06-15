@@ -208,6 +208,57 @@ function renderSchedule(container, schedule) {
 }
 
 // ==========================================
+// 一括抽選結果（bundle）描画（全画面共通）
+// vote_support.html / vote_variant.html / vote_revote.html 共通
+// listEl   : ドロー一覧の描画先（.draw-list を付与した要素）
+// totalEl  : 合計票数の描画先（数値を innerText で表示する要素）
+// bundle   : { draw_results: [{index, rank, weight}], total_weight }
+// 表示用 class に使う rank はホワイトリストで制限する（class 注入余地を排除）
+// ==========================================
+var GACHA_ALLOWED_RANKS = ['R', 'SR', 'SSR', 'UR'];
+
+function normalizeGachaRank(rank) {
+  if (GACHA_ALLOWED_RANKS.indexOf(rank) !== -1) return rank;
+  console.warn('Unexpected rank value, fallback to R:', rank);
+  return 'R';
+}
+
+function renderGachaBundle(listEl, totalEl, bundle) {
+  if (!listEl || !bundle || !bundle.draw_results) return;
+  listEl.innerHTML = '';
+
+  bundle.draw_results.forEach(function(r) {
+    var rank = normalizeGachaRank(r.rank);
+
+    var row = document.createElement('div');
+    row.className = 'draw-row';
+
+    var label = document.createElement('span');
+    label.className = 'draw-label';
+
+    var ball = document.createElement('span');
+    ball.className = 'gacha-ball draw-ball';
+    ball.classList.add('ball-' + rank);
+    ball.textContent = rank;
+
+    var idx = document.createElement('span');
+    idx.textContent = (r.index + 1) + '回目';
+
+    label.appendChild(ball);
+    label.appendChild(idx);
+
+    var weight = document.createElement('span');
+    weight.textContent = r.weight + '票';
+
+    row.appendChild(label);
+    row.appendChild(weight);
+    listEl.appendChild(row);
+  });
+
+  if (totalEl) totalEl.innerText = bundle.total_weight;
+}
+
+// ==========================================
 // 配列シャッフル（Fisher-Yates）
 // ==========================================
 function shuffleArray(array) {

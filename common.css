@@ -298,6 +298,43 @@ input, select, textarea {
 }
 
 /* ==========================================
+   一括抽選結果（bundle）一覧
+   vote_support / vote_variant / vote_revote 共通
+   ========================================== */
+.draw-list {
+  margin: 15px auto;
+  max-width: 360px;
+  text-align: left;
+}
+.draw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+.draw-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.draw-ball {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  font-size: 0.8em;
+  margin: 0;
+}
+.draw-total {
+  font-size: 1.3em;
+  margin: 15px 0;
+}
+.draw-total strong {
+  color: var(--color-vote);
+  font-size: 1.4em;
+}
+
+/* ==========================================
    順位バッジ
    ========================================== */
 .rank-badge {

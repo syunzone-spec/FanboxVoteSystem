@@ -14,17 +14,11 @@
     <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_revote.png">
     <link rel="stylesheet" href="common.css">
     <style>
-        /* ReVote 固有部品（04_style-guide.md §6） */
+        /* ReVote 固有部品（04_style-guide.md §6）。一括抽選一覧は common.css の .draw-* を使用 */
         #revote-login-section .desc-text,
         .revote-notice { font-size: 0.9em; color: var(--color-subtext); }
         #loading-msg { margin-bottom: 20px; color: var(--color-subtext); text-align: center; }
         #revote-vote-section, #revote-done-section { text-align: center; }
-        .revote-draw-list { margin: 15px auto; max-width: 360px; text-align: left; }
-        .revote-draw-list .draw-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid var(--color-border); }
-        .revote-draw-list .draw-label { display: flex; align-items: center; gap: 8px; }
-        .revote-draw-ball { width: 36px; height: 36px; font-size: 0.8em; }
-        .revote-total { font-size: 1.3em; margin: 15px 0; }
-        .revote-total strong { color: var(--color-vote); font-size: 1.4em; }
     </style>
 </head>
 <body class="theme-support">
@@ -66,8 +60,8 @@
 
         <div id="draw-area" class="hidden">
             <h3>今回の抽選結果</h3>
-            <div class="revote-draw-list" id="draw-list"></div>
-            <p class="revote-total">合計 <strong><span id="total-weight"></span></strong> 票</p>
+            <div class="draw-list" id="draw-list"></div>
+            <p class="draw-total">合計 <strong><span id="total-weight"></span></strong> 票</p>
             <hr>
             <p>この合計票数を投票する候補を1つ選んでください（リストはランダム順）</p>
             <div id="candidates-list"></div>
@@ -168,54 +162,11 @@
         document.getElementById('show-draw-btn').addEventListener('click', function() {
             if (!bundleData) return;
             this.classList.add('hidden');
-            renderBundle(bundleData);
+            renderGachaBundle(document.getElementById('draw-list'), document.getElementById('total-weight'), bundleData);
+            var shuffled = shuffleArray([].concat(candidatesData));
+            renderCandidates(shuffled, bundleData.total_weight);
             document.getElementById('draw-area').classList.remove('hidden');
         });
-
-        // 表示用 class に使う rank はホワイトリストで制限する（class 注入余地を排除）
-        var REVOTE_ALLOWED_RANKS = ['R', 'SR', 'SSR', 'UR'];
-
-        function normalizeRank(rank) {
-            if (REVOTE_ALLOWED_RANKS.indexOf(rank) !== -1) return rank;
-            console.warn('Unexpected rank value, fallback to R:', rank);
-            return 'R';
-        }
-
-        function renderBundle(bundle) {
-            var list = document.getElementById('draw-list');
-            list.innerHTML = '';
-            bundle.draw_results.forEach(function(r) {
-                var rank = normalizeRank(r.rank);
-
-                var row = document.createElement('div');
-                row.className = 'draw-row';
-
-                var label = document.createElement('span');
-                label.className = 'draw-label';
-
-                var ball = document.createElement('span');
-                ball.className = 'gacha-ball revote-draw-ball';
-                ball.classList.add('ball-' + rank);
-                ball.textContent = rank;
-
-                var idx = document.createElement('span');
-                idx.textContent = (r.index + 1) + '回目';
-
-                label.appendChild(ball);
-                label.appendChild(idx);
-
-                var weight = document.createElement('span');
-                weight.textContent = r.weight + '票';
-
-                row.appendChild(label);
-                row.appendChild(weight);
-                list.appendChild(row);
-            });
-            document.getElementById('total-weight').innerText = bundle.total_weight;
-
-            var shuffled = shuffleArray([].concat(candidatesData));
-            renderCandidates(shuffled, bundle.total_weight);
-        }
 
         function renderCandidates(listData, totalWeight) {
             var container = document.getElementById('candidates-list');
