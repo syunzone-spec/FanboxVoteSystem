@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>再投票所（ReVote）</title>
+    <meta property="og:title" content="再投票所（ReVote）">
+    <meta property="og:description" content="対象者限定の再投票所">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/vote_revote.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_revote.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="再投票所（ReVote）">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_revote.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        /* ReVote 固有部品（04_style-guide.md §6） */
+        #revote-login-section .desc-text,
+        .revote-notice { font-size: 0.9em; color: var(--color-subtext); }
+        #loading-msg { margin-bottom: 20px; color: var(--color-subtext); text-align: center; }
+        #revote-vote-section, #revote-done-section { text-align: center; }
+        .revote-draw-list { margin: 15px auto; max-width: 360px; text-align: left; }
+        .revote-draw-list .draw-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid var(--color-border); }
+        .revote-draw-list .draw-label { display: flex; align-items: center; gap: 8px; }
+        .revote-draw-ball { width: 36px; height: 36px; font-size: 0.8em; }
+        .revote-total { font-size: 1.3em; margin: 15px 0; }
+        .revote-total strong { color: var(--color-vote); font-size: 1.4em; }
+    </style>
+</head>
+<body class="theme-support">
+
+    <h2>🔁 再投票所</h2>
+
+    <div class="top-link">
+        <a href="result_revote.html" target="_blank">📊 現在の順位を確認する（速報）</a>
+    </div>
+
+    <div class="notice-box">
+        <p>今回は<strong>再投票</strong>です。対象者のみ投票できます。</p>
+        <p class="revote-notice">
+            Pixiv ID と登録ユーザー名を入力して進んでください。<br>
+            抽選結果は前回と同一の条件で算出されます。今回の合計票数を1つの候補へまとめて投票します。<br>
+            投票後、指定の FANBOX 記事へのコメント、または管理者へのメッセージで本人確認を行います。本人確認が取れない場合、投票は最終集計時に無効となります。
+        </p>
+        <div class="schedule-info" id="schedule-area"></div>
+    </div>
+
+    <div id="revote-login-section" class="box login-box">
+        <h3>対象者確認</h3>
+        <p class="desc-text">Pixiv ID と登録ユーザー名を入力してください。（合言葉は不要です）</p>
+
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)">
+        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名">
+
+        <button id="check-btn" class="btn-auth">確認して進む</button>
+        <div id="login-error" class="error-msg hidden"></div>
+    </div>
+
+    <div id="loading-msg" class="hidden">
+        確認中...
+    </div>
+
+    <div id="revote-vote-section" class="box hidden">
+        <p>下のボタンを押すと、今回の抽選結果（前回と同一条件）が表示されます。</p>
+        <button id="show-draw-btn">抽選結果を表示</button>
+
+        <div id="draw-area" class="hidden">
+            <h3>今回の抽選結果</h3>
+            <div class="revote-draw-list" id="draw-list"></div>
+            <p class="revote-total">合計 <strong><span id="total-weight"></span></strong> 票</p>
+            <hr>
+            <p>この合計票数を投票する候補を1つ選んでください（リストはランダム順）</p>
+            <div id="candidates-list"></div>
+        </div>
+    </div>
+
+    <div id="revote-done-section" class="box hidden">
+        <h3>🎉 投票ありがとうございました 🎉</h3>
+        <p class="revote-notice">
+            この投票を正式に有効とするため、指定の FANBOX 記事へコメントをお願いします。<br>
+            支援者であることを公開したくない場合は、メッセージでご連絡ください。<br>
+            本人確認が取れない場合、投票は最終集計時に無効となります。
+        </p>
+        <button onclick="location.href='result_revote.html'">結果を見る（速報）</button>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        var currentUser = null;
+        var bundleData = null;
+        var candidatesData = [];
+
+        // ページ読み込み時：先行メンテナンス確認 + schedule取得 → 保存済み入力で自動照合
+        document.addEventListener('DOMContentLoaded', async function() {
+            getOrCreateUUID();
+
+            try {
+                var check = await apiGet({ mode: 'revote_init' });
+                if (!check) return; // maintenance handled by apiGet
+                if (check.data && check.data.schedule) {
+                    renderSchedule(document.getElementById('schedule-area'), check.data.schedule);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+
+            var savedPid = localStorage.getItem('revote_pid');
+            var savedName = localStorage.getItem('revote_name');
+            if (savedPid && savedName) {
+                document.getElementById('pixiv-id').value = savedPid;
+                document.getElementById('pixiv-name').value = savedName;
+                performEligibility(savedPid, savedName);
+            }
+        });
+
+        document.getElementById('check-btn').addEventListener('click', function() {
+            var pid = document.getElementById('pixiv-id').value;
+            var name = document.getElementById('pixiv-name').value;
+            if (!pid) return alert('Pixiv IDを入力してください');
+            if (!name) return alert('Pixivユーザー名を入力してください');
+            performEligibility(pid, name);
+        });
+
+        async function performEligibility(pid, name) {
+            var loginBox = document.getElementById('revote-login-section');
+            var loadingMsg = document.getElementById('loading-msg');
+            var btn = document.getElementById('check-btn');
+
+            loginBox.classList.add('hidden');
+            loadingMsg.classList.remove('hidden');
+            btn.disabled = true;
+
+            try {
+                var json = await apiGet({ mode: 'revote_init', pixiv_id: pid, pixiv_name: name });
+
+                loadingMsg.classList.add('hidden');
+
+                if (!json) return; // maintenance handled by apiGet
+
+                if (json.status === 'success') {
+                    // 照合成功時のみ保存（supporter_* は上書きしない）
+                    localStorage.setItem('revote_pid', pid);
+                    localStorage.setItem('revote_name', name);
+
+                    currentUser = json.data.user;
+                    candidatesData = json.data.candidates || [];
+                    bundleData = json.data.bundle || null;
+
+                    if (currentUser.is_voted) {
+                        document.getElementById('revote-done-section').classList.remove('hidden');
+                    } else {
+                        document.getElementById('revote-vote-section').classList.remove('hidden');
+                    }
+                } else {
+                    alert(json.message);
+                    loginBox.classList.remove('hidden');
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                console.error(e);
+                alert('通信エラーが発生しました');
+                loadingMsg.classList.add('hidden');
+                loginBox.classList.remove('hidden');
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('show-draw-btn').addEventListener('click', function() {
+            if (!bundleData) return;
+            this.classList.add('hidden');
+            renderBundle(bundleData);
+            document.getElementById('draw-area').classList.remove('hidden');
+        });
+
+        // 表示用 class に使う rank はホワイトリストで制限する（class 注入余地を排除）
+        var REVOTE_ALLOWED_RANKS = ['R', 'SR', 'SSR', 'UR'];
+
+        function normalizeRank(rank) {
+            if (REVOTE_ALLOWED_RANKS.indexOf(rank) !== -1) return rank;
+            console.warn('Unexpected rank value, fallback to R:', rank);
+            return 'R';
+        }
+
+        function renderBundle(bundle) {
+            var list = document.getElementById('draw-list');
+            list.innerHTML = '';
+            bundle.draw_results.forEach(function(r) {
+                var rank = normalizeRank(r.rank);
+
+                var row = document.createElement('div');
+                row.className = 'draw-row';
+
+                var label = document.createElement('span');
+                label.className = 'draw-label';
+
+                var ball = document.createElement('span');
+                ball.className = 'gacha-ball revote-draw-ball';
+                ball.classList.add('ball-' + rank);
+                ball.textContent = rank;
+
+                var idx = document.createElement('span');
+                idx.textContent = (r.index + 1) + '回目';
+
+                label.appendChild(ball);
+                label.appendChild(idx);
+
+                var weight = document.createElement('span');
+                weight.textContent = r.weight + '票';
+
+                row.appendChild(label);
+                row.appendChild(weight);
+                list.appendChild(row);
+            });
+            document.getElementById('total-weight').innerText = bundle.total_weight;
+
+            var shuffled = shuffleArray([].concat(candidatesData));
+            renderCandidates(shuffled, bundle.total_weight);
+        }
+
+        function renderCandidates(listData, totalWeight) {
+            var container = document.getElementById('candidates-list');
+            container.innerHTML = '';
+            listData.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'candidate-card';
+                div.innerHTML =
+                    '<div><strong>' + esc(item.character) + '</strong><br><small>' + esc(item.theme) + '</small></div>' +
+                    '<button class="vote-btn">投票</button>';
+                div.querySelector('.vote-btn').addEventListener('click', function() {
+                    submitReVote(item.id, item.character, totalWeight);
+                });
+                container.appendChild(div);
+            });
+        }
+
+        async function submitReVote(targetId, charName, totalWeight) {
+            if (!confirm('「' + charName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。')) return;
+
+            var allBtns = document.querySelectorAll('.vote-btn');
+            allBtns.forEach(function(b) { b.disabled = true; });
+
+            try {
+                var result = await apiPost({
+                    action: 'submit_vote_revote',
+                    pixiv_id: currentUser.pixiv_id,
+                    pixiv_name: currentUser.pixiv_name,
+                    target_request_id: targetId,
+                    ip_address: await getIpAddress(),
+                    user_agent: navigator.userAgent,
+                    device_uuid: getOrCreateUUID()
+                });
+
+                if (result.status === 'success') {
+                    document.getElementById('revote-vote-section').classList.add('hidden');
+                    document.getElementById('revote-done-section').classList.remove('hidden');
+                } else if (result.status === 'maintenance') {
+                    showMaintenance(result.message);
+                } else {
+                    alert(result.message);
+                    location.reload();
+                }
+            } catch (e) {
+                console.error(e);
+                alert('送信エラー');
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>

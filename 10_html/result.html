@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投票結果速報</title>
+
+    <meta property="og:title" content="リクエスト投票結果（速報）">
+    <meta property="og:description" content="現在の投票順位">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/result.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/result.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="リクエスト投票結果（速報）">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/result.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .update-note { font-size: 0.85em; color: #888; margin-bottom: 20px; }
+        .cta-box { background-color: #fff8e1; border: 2px solid #ffc107; padding: 25px; border-radius: 10px; margin-top: 30px; box-shadow: 0 4px 10px rgba(255, 193, 7, 0.2); }
+        .cta-title { color: #d39e00; font-weight: bold; font-size: 1.3em; margin-bottom: 10px; display: block; }
+        .fanbox-btn {
+            display: inline-block; margin-top: 15px; padding: 15px 40px;
+            background: linear-gradient(45deg, #ff9900, #ffcc00);
+            color: white; text-decoration: none; border-radius: 30px;
+            font-weight: bold; font-size: 1.1em;
+            box-shadow: 0 4px 6px rgba(255, 153, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .fanbox-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 10px rgba(255, 153, 0, 0.4); }
+        .vote-link { display: block; margin-top: 15px; color: var(--color-link); font-size: 0.9em; text-decoration: underline; cursor: pointer; }
+        .vote-link:hover { color: var(--color-primary-hover); }
+        .footer-link { margin-top: 20px; font-size: 0.9em; }
+        .footer-link a { color: #666; }
+        .loading { color: #888; font-style: italic; padding: 20px; }
+    </style>
+</head>
+<body class="theme-public">
+
+    <div class="container">
+        <h2>現在の集計結果</h2>
+        <p class="update-note">
+            ※不正対策および集計確認のため、投票結果への反映には時間がかかる場合があります。<br>
+            <button onclick="location.reload()" class="reload-btn">↻ 最新情報に更新</button>
+        </p>
+        <div class="schedule-info" id="schedule-area"></div>
+        <div id="ranking-list">
+            <div class="loading">データを読み込んでいます...</div>
+        </div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            var container = document.getElementById('ranking-list');
+
+            try {
+                var json = await apiGet({ mode: 'public_results' });
+                if (!json) return; // maintenance（通常は結果画面では発生しない）
+
+                if (json.status === 'success') {
+                    if (json.data && json.data.schedule) {
+                        renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
+                    }
+                    renderResults(json.data.results);
+                } else {
+                    container.innerHTML = '<div class="error-msg">データの取得に失敗しました。<br>' + esc(json.message || '') + '</div>';
+                }
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<div class="error-msg">通信エラーが発生しました。<br>時間をおいて再読み込みしてください。</div>';
+            }
+        });
+    </script>
+</body>
+</html>

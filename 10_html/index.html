@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リクエストお題箱</title>
+    <meta property="og:title" content="リクエスト受付所">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/index.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/index.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="リクエスト受付所">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/index.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .form-group { margin-bottom: 20px; }
+        .hint { font-size: 0.8em; color: var(--color-subtext); display: block; margin-bottom: 5px; text-align: left; }
+        #status-message { margin-top: 20px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body class="theme-public">
+
+    <h2>リクエストお題箱</h2>
+
+    <div class="notice-box">
+        <strong>【必ずお読みください】</strong>
+        <ul>
+            <li>頂いたリクエストの中から、後日投票を行います。</li>
+            <li>投票リストに追加する際に、リクエスト内容はこちらで微修正します。細かすぎる内容や対応が難しい内容は反映されない可能性があるのでご了承下さい。</li>
+            <li><strong>今回から複数キャラは２名を上限にします。超えている場合、リクエストに反映されないのでご注意ください</strong></li>
+            <li>集計は手作業で行っているため、なにかあればメッセージやコメントにてお知らせください。</li>
+            <li>期間中に同一HNから複数のリクエストがあった場合、<strong>最後に送信された内容のみを有効（後勝ち）</strong>とします。修正したい場合は再度送信してください。</li>
+            <li>エラーが出る場合は時間を変えてリトライしてください。</li>
+        </ul>
+    </div>
+
+    <div class="schedule-info" id="schedule-area"></div>
+
+    <form id="request-form">
+        <div class="form-group">
+            <label>ハンドルネーム</label>
+            <input type="text" id="nickname" placeholder="お名前" maxlength="20" required>
+        </div>
+
+        <div class="form-group">
+            <label>キャラクター名（複数キャラの場合は併記、２名まで）</label>
+            <input type="text" id="character" placeholder="例: 立花響、小日向未来" maxlength="30" required>
+        </div>
+
+        <div class="form-group">
+            <label>シチュエーション</label>
+            <span class="hint">最大50文字程度。簡潔にお願いします。</span>
+            <input type="text" id="theme" placeholder="例: バニー・ギャル" maxlength="50" required>
+        </div>
+
+        <button type="submit" id="submit-btn" disabled>読み込み中...</button>
+    </form>
+
+    <div id="status-message" class="hidden"></div>
+
+    <script src="common.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            getOrCreateUUID();
+            var savedName = localStorage.getItem('gacha_user_name');
+            if (savedName) document.getElementById('nickname').value = savedName;
+
+            // 初期メンテナンス確認 GET + schedule取得
+            try {
+                var json = await apiGet({ mode: 'request_init' });
+                if (!json) return; // maintenance handled by apiGet
+                if (json.data && json.data.schedule) {
+                    renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
+                }
+            } catch(e) {
+                console.error(e);
+            }
+
+            var btn = document.getElementById('submit-btn');
+            btn.disabled = false;
+            btn.innerText = 'リクエストを送信';
+        });
+
+        document.getElementById('request-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            var btn = document.getElementById('submit-btn');
+            var msgDiv = document.getElementById('status-message');
+
+            btn.disabled = true;
+            btn.innerText = "送信中...";
+            msgDiv.classList.add('hidden');
+
+            try {
+                var ip = await getIpAddress();
+                var nickname = document.getElementById('nickname').value;
+
+                localStorage.setItem('gacha_user_name', nickname);
+
+                var result = await apiPost({
+                    action: 'submit_request',
+                    pixiv_id: '',
+                    nickname: nickname,
+                    character: document.getElementById('character').value,
+                    theme: document.getElementById('theme').value,
+                    attributes: '',
+                    ip_address: ip,
+                    user_agent: navigator.userAgent,
+                    device_uuid: getOrCreateUUID(),
+                    screen_info: window.screen.width + 'x' + window.screen.height
+                });
+
+                if (result.status === 'maintenance') {
+                    showMaintenance(result.message);
+                    return;
+                }
+
+                if (result.status === 'success') {
+                    showMessage('success', 'リクエストを受け付けました！ありがとうございます。');
+                    document.getElementById('character').value = '';
+                    document.getElementById('theme').value = '';
+                } else {
+                    throw new Error(result.message || 'Unknown error');
+                }
+
+            } catch (error) {
+                console.error(error);
+                showMessage('error', '送信エラー: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "リクエストを送信";
+            }
+        });
+
+        function showMessage(type, text) {
+            var div = document.getElementById('status-message');
+            div.className = (type === 'success') ? 'success-msg' : 'error-msg';
+            div.innerText = text;
+            div.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

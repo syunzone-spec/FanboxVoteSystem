@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>差分リクエスト投票結果</title>
+
+    <meta property="og:title" content="差分リクエスト投票結果">
+    <meta property="og:description" content="現在の投票順位（速報）">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/result_variant.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/result_variant.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="差分リクエスト投票結果">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/result_variant.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .update-note { font-size: 0.85em; color: #888; margin-bottom: 20px; }
+        .loading { color: #888; font-style: italic; padding: 20px; }
+    </style>
+</head>
+<body class="theme-support">
+
+    <div class="container">
+        <h2>📊 差分投票結果</h2>
+        <p class="update-note">
+            ※不正対策および集計確認のため、投票結果への反映には時間がかかる場合があります。<br>
+            <button onclick="location.reload()" class="reload-btn">↻ 最新情報に更新</button>
+        </p>
+        <div class="schedule-info" id="schedule-area"></div>
+
+        <div id="ranking-list">
+            <div class="loading">データを読み込んでいます...</div>
+        </div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            var container = document.getElementById('ranking-list');
+
+            try {
+                var json = await apiGet({ mode: 'variant_results' });
+
+                if (!json) return; // maintenance handled by apiGet
+
+                if (json.status === 'success') {
+                    if (json.data && json.data.schedule) {
+                        renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
+                    }
+                    renderResults(json.data.results);
+                } else {
+                    container.innerHTML = '<div class="error-msg">データの取得に失敗しました。<br>' + esc(json.message || '') + '</div>';
+                }
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<div class="error-msg">通信エラーが発生しました。<br>時間をおいて再読み込みしてください。</div>';
+            }
+        });
+    </script>
+</body>
+</html>

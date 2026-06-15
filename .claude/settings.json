@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(*)",
+      "Edit",
+      "Write(*)",
+      "Update(*)",
+      "Update(*:*)",
+      "Grep(*)",
+      "Glob(*)",
+      "Bash(dotnet:*)",
+      "Bash(find:*)",
+      "Bash(git:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(mv:*)",
+      "Bash(echo:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(sudo:*)",
+      "Bash(del:*)"
+    ]
+  }
+}

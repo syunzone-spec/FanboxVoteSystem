@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>差分リクエスト</title>
+
+    <meta property="og:title" content="差分リクエスト">
+    <meta property="og:description" content="イラストの差分のリクエストを行うフォームです。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/request_variant.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/request_variant.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="差分リクエスト">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/request_variant.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .desc-text { font-size: 0.9em; color: var(--color-subtext); text-align: center; }
+        #loading-msg { margin-bottom: 20px; color: var(--color-subtext); }
+        #status-message { margin-top: 20px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body class="theme-support">
+
+    <h2>🗳️ 差分リクエスト</h2>
+
+    <div class="notice-box">
+        <p>支援者限定の差分リクエスト受付です。認証後にリクエストを投稿できます。</p>
+    </div>
+
+    <div class="schedule-info" id="schedule-area"></div>
+
+    <div id="login-section" class="box login-box">
+        <h3>支援者認証</h3>
+        <p class="desc-text">Fanboxの支援者IDと合言葉を入力してください。</p>
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)">
+        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名">
+        <input type="text" id="monthly-pass" placeholder="今月の合言葉">
+        <button id="login-btn" class="btn-auth">認証して進む</button>
+        <div id="login-error" class="error-msg hidden"></div>
+    </div>
+
+    <div id="loading-msg" class="hidden">
+        認証中...
+    </div>
+
+    <div id="main-area" class="hidden">
+        <div class="box">
+            <h3>新しい案をリクエスト</h3>
+            <p class="desc-text">ほぼ書き直しが必要など、<BR>対応が難しい物は反映できない可能性がありますのでご注意ください。</p>
+            <p>期間中に同一HNから複数のリクエストがあった場合、<strong>最後に送信された内容のみを有効（後勝ち）</strong>とします。修正したい場合は再度送信してください。</p>
+
+            <h3>📝 差分をリクエスト</h3>
+
+            <!--
+            <label>対象イラスト（リストから選択：試験運用のため、現在固定です。）</label>
+            <select id="req-subject">
+                <option value="">読み込み中...</option>
+            </select>
+            -->
+
+            <label>対象イラスト</label>
+            <input type="text" id="req-subject" placeholder="例: 2025年6月投稿のマリア など" maxlength="30">
+
+            <label>差分内容（50文字以内）</label>
+            <input type="text" id="req-content" maxlength="50" placeholder="例: 胸露出、鼻フック、アヘ顔、ぶっかけ 等">
+
+            <button id="req-submit-btn">リクエストを投稿</button>
+
+            <div id="status-message" class="hidden"></div>
+        </div>
+        <div class="logout-link" onclick="confirmLogoutSupporter('ログアウトしますか？（次回ID入力が必要になります）')">IDを変更する（ログアウト）</div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            getOrCreateUUID();
+
+            // 認証前の先行メンテナンス確認 GET + schedule取得
+            try {
+                var check = await apiGet({ mode: 'variant_request_init' });
+                if (!check) return; // maintenance handled by apiGet
+                if (check.data && check.data.schedule) {
+                    renderSchedule(document.getElementById('schedule-area'), check.data.schedule);
+                }
+            } catch(e) {
+                console.error(e);
+            }
+
+            var sup = loadSupporter();
+            if(sup.pid && sup.pass) {
+                document.getElementById('pixiv-id').value = sup.pid;
+                document.getElementById('monthly-pass').value = sup.pass;
+                if(sup.name) document.getElementById('pixiv-name').value = sup.name;
+                // ユーザー名が空の場合は自動ログインせず手動入力させる（空名のまま認証通過を防ぐ）
+                if(sup.name) doLogin(sup.pid, sup.pass, sup.name);
+            }
+        });
+
+        document.getElementById('login-btn').addEventListener('click', function() {
+            var pid = document.getElementById('pixiv-id').value;
+            var pass = document.getElementById('monthly-pass').value;
+            var name = document.getElementById('pixiv-name').value;
+
+            if(!pid) return alert("Pixiv IDを入力してください");
+            if(!pass) return alert("合言葉を入力してください");
+            if(!name) return alert("Pixivユーザー名を入力してください");
+
+            doLogin(pid, pass, name);
+        });
+
+        async function doLogin(pid, pass, name) {
+            // 手動・自動どちらの経路でも空のユーザー名を弾く（集計・識別用の値のため）
+            if(!name) return alert("Pixivユーザー名を入力してください");
+
+            var loginBox = document.getElementById('login-section');
+            var loadingMsg = document.getElementById('loading-msg');
+            var btn = document.getElementById('login-btn');
+
+            loginBox.classList.add('hidden');
+            loadingMsg.classList.remove('hidden');
+            btn.disabled = true;
+
+            try {
+                var json = await apiGet({ mode: 'variant_request_init', pixiv_id: pid, password: pass });
+
+                loadingMsg.classList.add('hidden');
+
+                if (!json) return; // maintenance handled by apiGet
+
+                if(json.status === 'success') {
+                    // 認証成功時のみ保存
+                    saveSupporter(pid, pass, name);
+                    document.getElementById('main-area').classList.remove('hidden');
+                } else {
+                    alert(json.message);
+                    loginBox.classList.remove('hidden');
+                    btn.disabled = false;
+                    handleAuthFailure();
+                }
+            } catch(e) {
+                console.error(e);
+                alert("通信エラーが発生しました");
+                loadingMsg.classList.add('hidden');
+                loginBox.classList.remove('hidden');
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('req-submit-btn').onclick = async function() {
+            var subject = document.getElementById('req-subject').value;
+            var content = document.getElementById('req-content').value;
+            if(!subject || !content) return alert("入力内容を確認してください");
+            if(!confirm("この内容で送信しますか？\n(送信後は承認待ちとなります)")) return;
+
+            var btn = document.getElementById('req-submit-btn');
+            btn.disabled = true; btn.innerText = "送信中...";
+
+            try {
+                var ip = await getIpAddress();
+                var result = await apiPost({
+                    action: 'submit_variant_request',
+                    pixiv_id: localStorage.getItem('supporter_pid'),
+                    password: localStorage.getItem('supporter_pass'),
+                    nickname: localStorage.getItem('supporter_name') || '名無し',
+                    subject: subject,
+                    content: content,
+                    ip_address: ip,
+                    user_agent: navigator.userAgent,
+                    device_uuid: getOrCreateUUID(),
+                    screen_info: window.screen.width + 'x' + window.screen.height
+                });
+
+                if (result.status === 'maintenance') {
+                    showMaintenance(result.message);
+                    return;
+                }
+
+                if(result.status === 'success') {
+                    showMessage('success', 'リクエストを受け付けました！管理者の確認後にリストに追加されます。');
+                    document.getElementById('req-subject').value = "";
+                    document.getElementById('req-content').value = "";
+                } else {
+                    showMessage('error', 'エラー: ' + (result.message || '不明なエラー'));
+                }
+            } catch(e) {
+                console.error(e);
+                showMessage('error', '送信エラー: ' + e.message);
+            } finally { btn.disabled = false; btn.innerText = "リクエストを投稿"; }
+        };
+
+        function showMessage(type, text) {
+            var div = document.getElementById('status-message');
+            div.className = (type === 'success') ? 'success-msg' : 'error-msg';
+            div.innerText = text;
+            div.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
