@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>差分投票</title>
+    <meta property="og:title" content="差分投票">
+    <meta property="og:description" content="差分の投票所です。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/vote_variant.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_variant.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="差分投票">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_variant.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .desc-text { font-size: 0.9em; color: var(--color-subtext); text-align: center; }
+        #loading-msg { margin-bottom: 20px; color: var(--color-subtext); }
+        .card-info { flex: 1; margin-right: 10px; }
+        .badge { display: inline-block; background: #e9ecef; color: #495057; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; margin-bottom: 4px; font-weight: bold; }
+        .vote-status { text-align: center; margin-bottom: 15px; }
+        .vote-status strong { font-size: 1.2em; }
+        #vote-list-area { margin-top: 20px; }
+        .gacha-result-band { font-size: 1.2em; }
+        #current-weight { font-size: 1.4em; color: var(--color-primary-hover); }
+    </style>
+</head>
+<body class="theme-support">
+
+    <h2>🗳️ 差分投票所</h2>
+
+    <div class="top-link">
+        <a href="result_variant.html" target="_blank">📊 現在の順位を確認する</a>
+    </div>
+
+    <div class="notice-box">
+        <p>支援者限定の差分投票所です。認証後に投票できます。</p>
+        <div class="schedule-info" id="schedule-area"></div>
+    </div>
+
+    <div id="login-section" class="box login-box">
+        <h3>支援者認証</h3>
+        <p class="desc-text">Fanboxの支援者IDと合言葉を入力してください。</p>
+        <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)">
+        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名 (集計用)">
+        <input type="text" id="monthly-pass" placeholder="今月の合言葉">
+        <button id="login-btn" class="btn-auth">認証して進む</button>
+        <div id="login-error" class="error-msg hidden"></div>
+    </div>
+
+    <div id="loading-msg" class="hidden">
+        認証中...
+    </div>
+
+    <div id="vote-section" class="box hidden">
+        <div class="vote-status">
+            残り投票回数: <strong><span id="remain-count">-</span> / <span id="max-count">-</span></strong>
+        </div>
+
+        <p class="desc-text">下のボタンを押して、今回の票数を決定します。</p>
+        <button id="gacha-btn">抽選開始</button>
+
+        <div id="vote-list-area" class="hidden">
+            <div id="gacha-ball-display"></div>
+            <p class="gacha-result-band">今回は <strong><span id="current-weight">0</span> 票</strong> として投票できます！</p>
+            <hr>
+            <p class="desc-text">投票先を選んでください（順不同）</p>
+            <div id="candidates-list"></div>
+        </div>
+
+        <div class="logout-link" onclick="confirmLogoutSupporter('ログアウトしますか？（次回ID入力が必要になります）')">IDを変更する（ログアウト）</div>
+    </div>
+
+    <div id="done-section" class="box hidden">
+        <h3>🎉 投票完了 🎉</h3>
+        <p>今回の投票権をすべて使い切りました！<br>ありがとうございました！</p>
+        <button onclick="location.href='result_variant.html'">結果を見る</button>
+
+        <div class="logout-link" onclick="confirmLogoutSupporter('ログアウトしますか？（次回ID入力が必要になります）')">IDを変更する（ログアウト）</div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        var currentUser = null;
+        var candidatesData = [];
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            getOrCreateUUID();
+
+            // 認証前の先行メンテナンス確認 GET + schedule取得
+            try {
+                var check = await apiGet({ mode: 'variant_init' });
+                if (!check) return; // maintenance handled by apiGet
+                if (check.data && check.data.schedule) {
+                    renderSchedule(document.getElementById('schedule-area'), check.data.schedule);
+                }
+            } catch(e) {
+                console.error(e);
+            }
+
+            var sup = loadSupporter();
+            if(sup.pid && sup.pass) {
+                document.getElementById('pixiv-id').value = sup.pid;
+                document.getElementById('monthly-pass').value = sup.pass;
+                if(sup.name) document.getElementById('pixiv-name').value = sup.name;
+                // ユーザー名が空の場合は自動ログインせず手動入力させる（空名のまま認証通過を防ぐ）
+                if(sup.name) doLogin(sup.pid, sup.pass, sup.name);
+            }
+        });
+
+        document.getElementById('login-btn').addEventListener('click', function() {
+            var pid = document.getElementById('pixiv-id').value;
+            var pass = document.getElementById('monthly-pass').value;
+            var name = document.getElementById('pixiv-name').value;
+
+            if(!pid) return alert("Pixiv IDを入力してください");
+            if(!pass) return alert("合言葉を入力してください");
+            if(!name) return alert("Pixivユーザー名を入力してください");
+
+            doLogin(pid, pass, name);
+        });
+
+        async function doLogin(pid, pass, name) {
+            // 手動・自動どちらの経路でも空のユーザー名を弾く（集計・識別用の値のため）
+            if(!name) return alert("Pixivユーザー名を入力してください");
+
+            var loginBox = document.getElementById('login-section');
+            var loadingMsg = document.getElementById('loading-msg');
+            var btn = document.getElementById('login-btn');
+
+            loginBox.classList.add('hidden');
+            loadingMsg.classList.remove('hidden');
+            btn.disabled = true;
+
+            try {
+                var json = await apiGet({ mode: 'variant_init', pixiv_id: pid, password: pass });
+
+                loadingMsg.classList.add('hidden');
+
+                if (!json) return; // maintenance handled by apiGet
+
+                if(json.status === 'success') {
+                    // 認証成功時のみ保存
+                    saveSupporter(pid, pass, name);
+                    currentUser = json.data.user;
+                    candidatesData = json.data.candidates;
+
+                    if (currentUser.is_fully_voted) {
+                        document.getElementById('done-section').classList.remove('hidden');
+                    } else {
+                        setupVoteScreen();
+                    }
+                } else {
+                    alert(json.message);
+                    loginBox.classList.remove('hidden');
+                    btn.disabled = false;
+                    handleAuthFailure();
+                }
+            } catch(e) {
+                console.error(e);
+                alert("通信エラーが発生しました");
+                loadingMsg.classList.add('hidden');
+                loginBox.classList.remove('hidden');
+                btn.disabled = false;
+            }
+        }
+
+        function setupVoteScreen() {
+            var remain = currentUser.max_votes - currentUser.vote_count;
+            document.getElementById('remain-count').innerText = remain;
+            document.getElementById('max-count').innerText = currentUser.max_votes;
+            document.getElementById('vote-section').classList.remove('hidden');
+
+            document.getElementById('gacha-btn').onclick = function() {
+                startVotePhase(currentUser.next_gacha);
+            };
+        }
+
+        function startVotePhase(gachaResult) {
+            document.getElementById('gacha-btn').classList.add('hidden');
+            document.getElementById('vote-list-area').classList.remove('hidden');
+
+            var ball = document.getElementById('gacha-ball-display');
+            ball.className = 'gacha-ball ball-' + gachaResult.rank;
+            ball.innerText = gachaResult.rank;
+
+            document.getElementById('current-weight').innerText = gachaResult.weight;
+
+            var container = document.getElementById('candidates-list');
+            container.innerHTML = "";
+
+            if(candidatesData.length === 0) {
+                container.innerHTML = "<p>現在投票可能な候補がありません。<br>管理者の更新をお待ちください。</p>";
+                return;
+            }
+
+            var shuffled = shuffleArray([].concat(candidatesData));
+            shuffled.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'candidate-card';
+                div.innerHTML =
+                    '<div class="card-info">' +
+                        '<span class="badge">' + esc(item.character) + '</span><br>' +
+                        '<strong>' + esc(item.theme) + '</strong><br>' +
+                    '</div>' +
+                    '<button class="vote-btn">投票</button>';
+                div.querySelector('.vote-btn').addEventListener('click', function() {
+                    submitVote(item.id, item.theme, gachaResult.weight);
+                });
+                container.appendChild(div);
+            });
+        }
+
+        async function submitVote(targetId, themeName, weight) {
+            if(!confirm('「' + themeName + '」に ' + weight + '票 を入れますか？')) return;
+            document.querySelectorAll('.vote-btn').forEach(function(b) { b.disabled = true; });
+            try {
+                var ip = await getIpAddress();
+                var result = await apiPost({
+                    action: 'submit_vote_variant',
+                    pixiv_id: currentUser.pixiv_id,
+                    user_name: localStorage.getItem('supporter_name'),
+                    target_request_id: targetId,
+                    password: localStorage.getItem('supporter_pass'),
+                    device_uuid: getOrCreateUUID(),
+                    ip_address: ip,
+                    user_agent: navigator.userAgent
+                });
+
+                if (result.status === 'maintenance') {
+                    showMaintenance(result.message);
+                    return;
+                }
+
+                if(result.status === 'success') {
+                    alert("投票しました！");
+                    location.reload();
+                } else {
+                    alert("エラー: " + result.message);
+                    location.reload();
+                }
+            } catch(e) {
+                alert("通信エラー");
+                location.reload();
+            }
+        }
+
+    </script>
+</body>
+</html>

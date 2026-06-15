@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リクエスト投票所</title>
+    <meta property="og:title" content="リクエスト投票所">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://syunzone-spec.github.io/FanboxVoteSystem/vote_public.html">
+    <meta property="og:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_public.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="リクエスト投票所">
+    <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_public.png">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .daily-luck { font-size: 1.2em; font-weight: bold; color: var(--color-primary-hover); margin: 10px 0; }
+        .daily-luck span { font-size: 1.5em; color: #d9534f; }
+        .notice-divider { border: 0; border-top: 1px dashed var(--color-border); margin: 15px 0; }
+        .notice-warning { color: #d9534f; font-size: 0.9em; font-weight: bold; }
+    </style>
+</head>
+<body class="theme-public">
+    <h2>一般投票所</h2>
+
+    <div class="top-link">
+        <a href="result.html" target="_blank">📊 現在の順位を確認する</a>
+    </div>
+
+    <div class="notice-box">
+        <p>どなたでも1日1回投票可能です！</p>
+        <div class="schedule-info" id="schedule-area"></div>
+        <hr class="notice-divider">
+        <p class="notice-warning">
+            【ご注意】<br>
+            公平性を保つため、不自然な連続投票や不正と検知した票は<BR>集計時に無効とさせていただく場合があります。
+        </p>
+    </div>
+
+    <div id="vote-section" class="box">
+        <p>下のボタンを押して、今日の投票力を決定します。</p>
+        <button id="pull-btn" disabled>読み込み中...</button>
+
+        <div id="result-area" class="hidden">
+            <div id="gacha-ball-display"></div>
+            <div class="daily-luck">
+                今日の投票力： <span id="current-weight">?</span>pt <small id="weight-rank"></small>
+            </div>
+            <hr>
+            <p>投票先を選んでください（リストはランダム順）</p>
+            <div id="candidates-list"></div>
+        </div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        var currentWeight = 1;
+        var candidatesData = [];
+        var gachaData = null;
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            getOrCreateUUID();
+
+            try {
+                var ip = await getIpAddress();
+                var ua = navigator.userAgent;
+
+                var json = await apiGet({
+                    mode: 'public_vote',
+                    ip: ip,
+                    ua: ua
+                });
+
+                if (!json) return; // maintenance handled by apiGet
+
+                if (json.data && json.data.schedule) {
+                    renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
+                }
+
+                gachaData = json.data.my_gacha;
+                candidatesData = json.data.candidates;
+
+                if (gachaData) {
+                    currentWeight = gachaData.weight;
+                }
+
+                var pullBtn = document.getElementById('pull-btn');
+                pullBtn.disabled = false;
+                pullBtn.innerText = '抽選開始';
+
+            } catch(e) {
+                console.error(e);
+                document.getElementById('pull-btn').innerText = '読み込みエラー';
+            }
+        });
+
+        document.getElementById('pull-btn').addEventListener('click', function() {
+            this.classList.add('hidden');
+            var area = document.getElementById('result-area');
+            area.classList.remove('hidden');
+
+            if (gachaData) {
+                var ball = document.getElementById('gacha-ball-display');
+                ball.className = 'gacha-ball ball-' + gachaData.rank;
+                ball.innerText = gachaData.rank;
+
+                document.getElementById('current-weight').innerText = currentWeight;
+                document.getElementById('weight-rank').innerText = '(' + gachaData.rank + ')';
+            } else {
+                document.getElementById('current-weight').innerText = '?';
+            }
+
+            var shuffled = shuffleArray([].concat(candidatesData));
+            renderCandidates(shuffled);
+        });
+
+        function renderCandidates(list) {
+            var container = document.getElementById('candidates-list');
+            container.innerHTML = "";
+            list.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'candidate-card';
+                div.innerHTML =
+                    '<div><strong>' + esc(item.character) + '</strong><br><small>' + esc(item.theme) + '</small></div>' +
+                    '<button class="vote-btn">投票 (' + currentWeight + 'pt)</button>';
+                div.querySelector('.vote-btn').addEventListener('click', function() {
+                    vote(item.id, item.character);
+                });
+                container.appendChild(div);
+            });
+        }
+
+        async function vote(targetId, charName) {
+            if(!confirm('「' + charName + '」に投票しますか？\n(本日の投票力: ' + currentWeight + 'pt)')) return;
+
+            var btns = document.querySelectorAll('.vote-btn');
+            btns.forEach(function(b) { b.disabled = true; });
+
+            try {
+                var ip = await getIpAddress();
+                var result = await apiPost({
+                    action: 'submit_vote_public',
+                    target_request_id: targetId,
+                    ip_address: ip,
+                    user_agent: navigator.userAgent,
+                    screen_info: window.screen.width + 'x' + window.screen.height,
+                    device_uuid: getOrCreateUUID()
+                });
+
+                if (result.status === 'success') {
+                    var finalWeight = result.result_detail ? result.result_detail.weight : currentWeight;
+                    alert(finalWeight + 'pt で投票しました！\n明日の投票もお待ちしています。');
+                    location.href = 'result.html';
+                } else if (result.status === 'maintenance') {
+                    showMaintenance(result.message);
+                } else {
+                    alert(result.message);
+                    btns.forEach(function(b) { b.disabled = false; });
+                }
+            } catch(e) {
+                alert("通信エラー");
+                btns.forEach(function(b) { b.disabled = false; });
+            }
+        }
+    </script>
+</body>
+</html>
