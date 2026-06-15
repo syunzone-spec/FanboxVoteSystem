@@ -6,10 +6,6 @@
 // GAS API URL（全画面共通）
 const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxlHCDSZgIV8kQ7XpjTg6CXwVNxLszhjOzdXXQXa1ffiRw_X1qfR256vG-ZSP7d4SLWUg/exec";
 
-// Cloudflare Turnstile site key（公開鍵。現状 vote_public.html のみ使用）
-// secret key はサーバー側 Config の SETTING_TURNSTILE_SECRET で管理し、フロントには置かない。
-const TURNSTILE_SITE_KEY = "0x4AAAAAADlD8uSfP20Ez8lD";
-
 // ==========================================
 // IPアドレス取得
 // ==========================================

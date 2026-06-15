@@ -18,8 +18,6 @@
         .notice-divider { border: 0; border-top: 1px dashed var(--color-border); margin: 15px 0; }
         .notice-warning { color: #d9534f; font-size: 0.9em; font-weight: bold; }
     </style>
-    <!-- 人間確認（Cloudflare Turnstile）。window.turnstile は typeof ガードしてから使用する -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body class="theme-public">
     <h2>一般投票所</h2>
@@ -48,8 +46,6 @@
                 今日の投票力： <span id="current-weight">?</span>pt <small id="weight-rank"></small>
             </div>
             <hr>
-            <div id="captcha-area"></div>
-            <div id="captcha-error" class="error-msg hidden"></div>
             <p>投票先を選んでください（リストはランダム順）</p>
             <div id="candidates-list"></div>
         </div>
@@ -60,12 +56,6 @@
         var currentWeight = 1;
         var candidatesData = [];
         var gachaData = null;
-
-        // 人間確認（CAPTCHA）状態
-        var captchaRequired = false;   // GET 応答 data.captcha_required（ON/OFF）
-        var captchaToken = '';         // 成功 callback で受け取った token
-        var captchaWidgetId = null;    // turnstile.render の戻り
-        var captchaLoadFailed = false; // 読み込み/描画/error-callback 失敗
 
         document.addEventListener('DOMContentLoaded', async function() {
             getOrCreateUUID();
@@ -86,7 +76,6 @@
                     renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
                 }
 
-                captchaRequired = !!(json.data && json.data.captcha_required);
                 gachaData = json.data.my_gacha;
                 candidatesData = json.data.candidates;
 
@@ -122,9 +111,6 @@
 
             var shuffled = shuffleArray([].concat(candidatesData));
             renderCandidates(shuffled);
-
-            // 人間確認 widget を描画（captchaRequired=true のときのみ）
-            setupCaptcha();
         });
 
         function renderCandidates(list) {
@@ -141,126 +127,24 @@
                 });
                 container.appendChild(div);
             });
-            // token 状態に応じて投票ボタンの活性を反映（未取得時は非活性）
-            updateVoteButtons();
-        }
-
-        // ==========================================
-        // 人間確認（CAPTCHA / Cloudflare Turnstile）
-        // ==========================================
-        function showCaptchaError(message) {
-            var el = document.getElementById('captcha-error');
-            if (!el) return;
-            if (message) {
-                el.textContent = message;
-                el.classList.remove('hidden');
-            } else {
-                el.textContent = '';
-                el.classList.add('hidden');
-            }
-        }
-
-        function updateVoteButtons() {
-            var ready = !captchaRequired || (!captchaLoadFailed && !!captchaToken);
-            document.querySelectorAll('.vote-btn').forEach(function(b) { b.disabled = !ready; });
-        }
-
-        function resetCaptcha() {
-            captchaToken = '';
-            if (captchaRequired && captchaWidgetId !== null && typeof window.turnstile !== 'undefined') {
-                try { turnstile.reset(captchaWidgetId); } catch (e) {}
-            }
-            updateVoteButtons();
-        }
-
-        function setupCaptcha() {
-            if (!captchaRequired) return;                    // OFF 時は何もしない（現行挙動）
-            renderCaptchaWhenReady(0);
-        }
-
-        // api.js は async defer のため未ロードの可能性がある。
-        // 一定時間（約5秒）待っても window.turnstile が現れない場合のみ「読み込み失敗」とする。
-        // 読み込み中の早すぎる失敗判定で正規利用者をブロックしないため。
-        function renderCaptchaWhenReady(attempt) {
-            if (typeof window.turnstile === 'undefined') {
-                if (attempt >= 25) {                         // 約5秒（200ms × 25）
-                    captchaLoadFailed = true;
-                    showCaptchaError('人間確認を読み込めませんでした。再読み込みしてください。');
-                    updateVoteButtons();
-                    return;
-                }
-                setTimeout(function() { renderCaptchaWhenReady(attempt + 1); }, 200);
-                return;
-            }
-            try {
-                captchaWidgetId = turnstile.render('#captcha-area', {
-                    sitekey: TURNSTILE_SITE_KEY,
-                    action: 'vote_public',
-                    callback: function(token) {               // 取得成功
-                        captchaToken = token;
-                        captchaLoadFailed = false;
-                        showCaptchaError('');
-                        updateVoteButtons();
-                    },
-                    'expired-callback': function() {          // 期限切れ → token 失効
-                        captchaToken = '';
-                        updateVoteButtons();
-                        if (captchaWidgetId !== null && typeof window.turnstile !== 'undefined') {
-                            try { turnstile.reset(captchaWidgetId); } catch (e) {}
-                        }
-                    },
-                    'error-callback': function() {            // 読み込み/実行エラー
-                        // 独自案内を表示し投票ボタンを非活性化する。戻り値には依存しない。
-                        captchaToken = '';
-                        captchaLoadFailed = true;
-                        showCaptchaError('人間確認を読み込めませんでした。再読み込みしてください。');
-                        updateVoteButtons();
-                    }
-                });
-            } catch (e) {
-                captchaLoadFailed = true;
-                showCaptchaError('人間確認を読み込めませんでした。再読み込みしてください。');
-                updateVoteButtons();
-            }
         }
 
         async function vote(targetId, charName) {
             if(!confirm('「' + charName + '」に投票しますか？\n(本日の投票力: ' + currentWeight + 'pt)')) return;
-
-            // 人間確認ガード（多重）。captchaRequired=false 時はスキップ。
-            if (captchaRequired) {
-                if (captchaLoadFailed || typeof window.turnstile === 'undefined') {
-                    alert('人間確認を読み込めませんでした。再読み込みしてください。');
-                    return; // POST しない
-                }
-                var preToken = captchaToken ||
-                    (captchaWidgetId !== null && typeof window.turnstile !== 'undefined'
-                        ? turnstile.getResponse(captchaWidgetId) : '');
-                if (!preToken) {
-                    alert('人間確認が完了していません。完了するまでお待ちいただくか、ページを再読み込みしてください。');
-                    return; // POST しない
-                }
-            }
 
             var btns = document.querySelectorAll('.vote-btn');
             btns.forEach(function(b) { b.disabled = true; });
 
             try {
                 var ip = await getIpAddress();
-                var postData = {
+                var result = await apiPost({
                     action: 'submit_vote_public',
                     target_request_id: targetId,
                     ip_address: ip,
                     user_agent: navigator.userAgent,
                     screen_info: window.screen.width + 'x' + window.screen.height,
                     device_uuid: getOrCreateUUID()
-                };
-                if (captchaRequired) {
-                    postData.captcha_token = captchaToken ||
-                        (captchaWidgetId !== null && typeof window.turnstile !== 'undefined'
-                            ? turnstile.getResponse(captchaWidgetId) : '');
-                }
-                var result = await apiPost(postData);
+                });
 
                 if (result.status === 'success') {
                     var finalWeight = result.result_detail ? result.result_detail.weight : currentWeight;
@@ -270,14 +154,11 @@
                     showMaintenance(result.message);
                 } else {
                     alert(result.message);
-                    // token は使い捨て。失敗時は再取得（captchaRequired=false 時はボタン再活性のみ）。
-                    if (captchaRequired) { resetCaptcha(); }
-                    else { btns.forEach(function(b) { b.disabled = false; }); }
+                    btns.forEach(function(b) { b.disabled = false; });
                 }
             } catch(e) {
                 alert("通信エラー");
-                if (captchaRequired) { resetCaptcha(); }
-                else { btns.forEach(function(b) { b.disabled = false; }); }
+                btns.forEach(function(b) { b.disabled = false; });
             }
         }
     </script>
