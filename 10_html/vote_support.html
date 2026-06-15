@@ -13,12 +13,10 @@
     <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_support.png">
     <link rel="stylesheet" href="common.css">
     <style>
+        /* 一括抽選一覧は common.css の .draw-* を使用 */
         .desc-text { font-size: 0.9em; color: var(--color-subtext); text-align: center; }
-        .status-badge { background: var(--color-badge-bg); color: var(--color-badge-text); padding: 5px 10px; border-radius: 15px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
         #loading-msg { margin-bottom: 20px; color: var(--color-subtext); }
         #vote-section, #done-section { text-align: center; }
-        .gacha-result { font-size: 1.2em; }
-        #current-weight { color: var(--color-vote); font-size: 1.5em; }
     </style>
 </head>
 <body class="theme-support">
@@ -51,16 +49,15 @@
     </div>
 
     <div id="vote-section" class="box hidden">
-        <div class="status-badge">残り投票回数: <span id="remain-count">0</span> / <span id="max-count">0</span></div>
+        <p>下のボタンを押すと、今回の抽選結果が表示されます。<br>合計票数を1つの候補へまとめて投票します。</p>
+        <button id="show-draw-btn">抽選結果を表示</button>
 
-        <p>下のボタンを押して、今回の票数を決定します。</p>
-        <button id="pull-btn">抽選開始</button>
-
-        <div id="result-area" class="hidden">
-            <div id="gacha-ball-display"></div>
-            <p class="gacha-result">今回は <strong><span id="current-weight"></span> 票</strong> として投票できます！</p>
+        <div id="draw-area" class="hidden">
+            <h3>今回の抽選結果</h3>
+            <div class="draw-list" id="draw-list"></div>
+            <p class="draw-total">合計 <strong><span id="total-weight"></span></strong> 票</p>
             <hr>
-            <p>投票先を選んでください（リストはランダム順）</p>
+            <p>この合計票数を投票する候補を1つ選んでください（リストはランダム順）</p>
             <div id="candidates-list"></div>
         </div>
 
@@ -69,7 +66,7 @@
 
     <div id="done-section" class="box hidden">
         <h3>🎉 投票完了 🎉</h3>
-        <p>今回の投票権をすべて使い切りました！<br>ありがとうございました！</p>
+        <p>投票が完了しました！<br>ありがとうございました！</p>
         <button onclick="location.href='result.html'">結果を見る</button>
 
         <div class="logout-link" onclick="confirmLogoutSupporter('ログアウトしますか？（次回ID入力が必要になります）')">IDを変更する（ログアウト）</div>
@@ -79,6 +76,7 @@
     <script>
         var currentUser = null;
         var candidatesData = [];
+        var bundleData = null;
 
         // ページ読み込み時：先行メンテナンス確認 → 保存済み認証情報で自動ログイン
         document.addEventListener('DOMContentLoaded', async function() {
@@ -140,12 +138,13 @@
                     saveSupporter(pid, pass, name);
 
                     currentUser = json.data.user;
-                    candidatesData = json.data.candidates;
+                    candidatesData = json.data.candidates || [];
+                    bundleData = json.data.bundle || null;
 
-                    if (currentUser.is_fully_voted) {
+                    if (currentUser.is_voted) {
                         document.getElementById('done-section').classList.remove('hidden');
                     } else {
-                        setupVoteScreen();
+                        document.getElementById('vote-section').classList.remove('hidden');
                     }
                 } else {
                     alert(json.message);
@@ -162,50 +161,34 @@
             }
         }
 
-        function setupVoteScreen() {
-            var remain = currentUser.max_votes - currentUser.vote_count;
-            document.getElementById('remain-count').innerText = remain;
-            document.getElementById('max-count').innerText = currentUser.max_votes;
-            document.getElementById('vote-section').classList.remove('hidden');
-
-            document.getElementById('pull-btn').onclick = function() {
-                playGacha(currentUser.next_gacha);
-            };
-        }
-
-        function playGacha(result) {
-            document.getElementById('pull-btn').classList.add('hidden');
-            var area = document.getElementById('result-area');
-            area.classList.remove('hidden');
-
-            var ball = document.getElementById('gacha-ball-display');
-            ball.className = 'gacha-ball ball-' + result.rank;
-            ball.innerText = result.rank;
-
-            document.getElementById('current-weight').innerText = result.weight;
-
+        // 「抽選結果を表示」→ maxVotes 回分の一括抽選一覧 + 合計 + 候補一覧を表示
+        document.getElementById('show-draw-btn').addEventListener('click', function() {
+            if (!bundleData) return;
+            this.classList.add('hidden');
+            renderGachaBundle(document.getElementById('draw-list'), document.getElementById('total-weight'), bundleData);
             var shuffled = shuffleArray([].concat(candidatesData));
-            renderList(shuffled, result.weight);
-        }
+            renderCandidates(shuffled, bundleData.total_weight);
+            document.getElementById('draw-area').classList.remove('hidden');
+        });
 
-        function renderList(list, weight) {
+        function renderCandidates(listData, totalWeight) {
             var container = document.getElementById('candidates-list');
             container.innerHTML = "";
-            list.forEach(function(item) {
+            listData.forEach(function(item) {
                 var div = document.createElement('div');
                 div.className = 'candidate-card';
                 div.innerHTML =
                     '<div><strong>' + esc(item.character) + '</strong><br><small>' + esc(item.theme) + '</small></div>' +
                     '<button class="vote-btn">投票</button>';
                 div.querySelector('.vote-btn').addEventListener('click', function() {
-                    submitVote(item.id, item.character, weight);
+                    submitVote(item.id, item.character, totalWeight);
                 });
                 container.appendChild(div);
             });
         }
 
-        async function submitVote(targetId, charName, weight) {
-            if(!confirm('「' + charName + '」に ' + weight + '票 を投票しますか？')) return;
+        async function submitVote(targetId, charName, totalWeight) {
+            if(!confirm('「' + charName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。')) return;
 
             var allBtns = document.querySelectorAll('.vote-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
@@ -219,15 +202,14 @@
                     password: localStorage.getItem('supporter_pass'),
                     user_name: storedName,
                     target_request_id: targetId,
-                    total_weight: weight,
                     ip_address: await getIpAddress(),
                     user_agent: navigator.userAgent,
                     device_uuid: getOrCreateUUID()
                 });
 
                 if(result.status === 'success') {
-                    alert("投票完了！\n(次の投票へ進みます)");
-                    location.reload();
+                    document.getElementById('vote-section').classList.add('hidden');
+                    document.getElementById('done-section').classList.remove('hidden');
                 } else if (result.status === 'maintenance') {
                     showMaintenance(result.message);
                 } else {

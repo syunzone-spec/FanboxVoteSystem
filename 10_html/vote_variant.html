@@ -14,15 +14,12 @@
     <meta name="twitter:image" content="https://syunzone-spec.github.io/FanboxVoteSystem/img/vote_variant.png">
     <link rel="stylesheet" href="common.css">
     <style>
+        /* 一括抽選一覧は common.css の .draw-* を使用 */
         .desc-text { font-size: 0.9em; color: var(--color-subtext); text-align: center; }
         #loading-msg { margin-bottom: 20px; color: var(--color-subtext); }
+        #vote-section, #done-section { text-align: center; }
         .card-info { flex: 1; margin-right: 10px; }
         .badge { display: inline-block; background: #e9ecef; color: #495057; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; margin-bottom: 4px; font-weight: bold; }
-        .vote-status { text-align: center; margin-bottom: 15px; }
-        .vote-status strong { font-size: 1.2em; }
-        #vote-list-area { margin-top: 20px; }
-        .gacha-result-band { font-size: 1.2em; }
-        #current-weight { font-size: 1.4em; color: var(--color-primary-hover); }
     </style>
 </head>
 <body class="theme-support">
@@ -53,18 +50,15 @@
     </div>
 
     <div id="vote-section" class="box hidden">
-        <div class="vote-status">
-            残り投票回数: <strong><span id="remain-count">-</span> / <span id="max-count">-</span></strong>
-        </div>
+        <p class="desc-text">下のボタンを押すと、今回の抽選結果が表示されます。<br>合計票数を1つの候補へまとめて投票します。</p>
+        <button id="show-draw-btn">抽選結果を表示</button>
 
-        <p class="desc-text">下のボタンを押して、今回の票数を決定します。</p>
-        <button id="gacha-btn">抽選開始</button>
-
-        <div id="vote-list-area" class="hidden">
-            <div id="gacha-ball-display"></div>
-            <p class="gacha-result-band">今回は <strong><span id="current-weight">0</span> 票</strong> として投票できます！</p>
+        <div id="draw-area" class="hidden">
+            <h3>今回の抽選結果</h3>
+            <div class="draw-list" id="draw-list"></div>
+            <p class="draw-total">合計 <strong><span id="total-weight"></span></strong> 票</p>
             <hr>
-            <p class="desc-text">投票先を選んでください（順不同）</p>
+            <p class="desc-text">この合計票数を投票する候補を1つ選んでください（順不同）</p>
             <div id="candidates-list"></div>
         </div>
 
@@ -73,7 +67,7 @@
 
     <div id="done-section" class="box hidden">
         <h3>🎉 投票完了 🎉</h3>
-        <p>今回の投票権をすべて使い切りました！<br>ありがとうございました！</p>
+        <p>投票が完了しました！<br>ありがとうございました！</p>
         <button onclick="location.href='result_variant.html'">結果を見る</button>
 
         <div class="logout-link" onclick="confirmLogoutSupporter('ログアウトしますか？（次回ID入力が必要になります）')">IDを変更する（ログアウト）</div>
@@ -83,6 +77,7 @@
     <script>
         var currentUser = null;
         var candidatesData = [];
+        var bundleData = null;
 
         document.addEventListener('DOMContentLoaded', async function() {
             getOrCreateUUID();
@@ -143,12 +138,13 @@
                     // 認証成功時のみ保存
                     saveSupporter(pid, pass, name);
                     currentUser = json.data.user;
-                    candidatesData = json.data.candidates;
+                    candidatesData = json.data.candidates || [];
+                    bundleData = json.data.bundle || null;
 
-                    if (currentUser.is_fully_voted) {
+                    if (currentUser.is_voted) {
                         document.getElementById('done-section').classList.remove('hidden');
                     } else {
-                        setupVoteScreen();
+                        document.getElementById('vote-section').classList.remove('hidden');
                     }
                 } else {
                     alert(json.message);
@@ -165,27 +161,16 @@
             }
         }
 
-        function setupVoteScreen() {
-            var remain = currentUser.max_votes - currentUser.vote_count;
-            document.getElementById('remain-count').innerText = remain;
-            document.getElementById('max-count').innerText = currentUser.max_votes;
-            document.getElementById('vote-section').classList.remove('hidden');
+        // 「抽選結果を表示」→ maxVotes 回分の一括抽選一覧 + 合計 + 候補一覧を表示
+        document.getElementById('show-draw-btn').addEventListener('click', function() {
+            if (!bundleData) return;
+            this.classList.add('hidden');
+            renderGachaBundle(document.getElementById('draw-list'), document.getElementById('total-weight'), bundleData);
+            renderCandidates(bundleData.total_weight);
+            document.getElementById('draw-area').classList.remove('hidden');
+        });
 
-            document.getElementById('gacha-btn').onclick = function() {
-                startVotePhase(currentUser.next_gacha);
-            };
-        }
-
-        function startVotePhase(gachaResult) {
-            document.getElementById('gacha-btn').classList.add('hidden');
-            document.getElementById('vote-list-area').classList.remove('hidden');
-
-            var ball = document.getElementById('gacha-ball-display');
-            ball.className = 'gacha-ball ball-' + gachaResult.rank;
-            ball.innerText = gachaResult.rank;
-
-            document.getElementById('current-weight').innerText = gachaResult.weight;
-
+        function renderCandidates(totalWeight) {
             var container = document.getElementById('candidates-list');
             container.innerHTML = "";
 
@@ -205,14 +190,14 @@
                     '</div>' +
                     '<button class="vote-btn">投票</button>';
                 div.querySelector('.vote-btn').addEventListener('click', function() {
-                    submitVote(item.id, item.theme, gachaResult.weight);
+                    submitVote(item.id, item.theme, totalWeight);
                 });
                 container.appendChild(div);
             });
         }
 
-        async function submitVote(targetId, themeName, weight) {
-            if(!confirm('「' + themeName + '」に ' + weight + '票 を入れますか？')) return;
+        async function submitVote(targetId, themeName, totalWeight) {
+            if(!confirm('「' + themeName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。')) return;
             document.querySelectorAll('.vote-btn').forEach(function(b) { b.disabled = true; });
             try {
                 var ip = await getIpAddress();
@@ -233,8 +218,8 @@
                 }
 
                 if(result.status === 'success') {
-                    alert("投票しました！");
-                    location.reload();
+                    document.getElementById('vote-section').classList.add('hidden');
+                    document.getElementById('done-section').classList.remove('hidden');
                 } else {
                     alert("エラー: " + result.message);
                     location.reload();
