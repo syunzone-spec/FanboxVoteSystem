@@ -24,6 +24,7 @@
     <div class="container">
         <h2>📊 差分投票結果</h2>
         <p class="update-note">
+            <span id="update-timing"></span><br>
             ※不正対策および集計確認のため、投票結果への反映には時間がかかる場合があります。<br>
             <button onclick="location.reload()" class="reload-btn">↻ 最新情報に更新</button>
         </p>
@@ -47,6 +48,9 @@
                 if (json.status === 'success') {
                     if (json.data && json.data.schedule) {
                         renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
+                    }
+                    if (json.data && json.data.result_update) {
+                        renderResultUpdate(document.getElementById('update-timing'), json.data.result_update);
                     }
                     renderResults(json.data.results);
                 } else {

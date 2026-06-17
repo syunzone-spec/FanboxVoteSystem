@@ -208,6 +208,27 @@ function renderSchedule(container, schedule) {
 }
 
 // ==========================================
+// 結果反映の次回更新時刻描画（result.html / result_variant.html 共通）
+// el          : 描画先要素
+// resultUpdate: { realtime: boolean, next_hour: number|null }
+// リアルタイム時は「随時更新」、それ以外は「〇時に更新されます」（〇時 表記・0:00 形式は使わない）
+// 01_core-spec.md §12.3.1 / 02_screen-spec.md §6.3
+// ==========================================
+function renderResultUpdate(el, resultUpdate) {
+  if (!el || !resultUpdate) return;
+  if (resultUpdate.realtime) {
+    el.textContent = '🔄 随時更新';
+    return;
+  }
+  var hour = Number(resultUpdate.next_hour);
+  if (resultUpdate.next_hour === null || resultUpdate.next_hour === undefined || isNaN(hour)) {
+    el.textContent = '';
+    return;
+  }
+  el.textContent = '🕒 ' + hour + '時に更新されます';
+}
+
+// ==========================================
 // 一括抽選結果（bundle）描画（全画面共通）
 // vote_support.html / vote_variant.html / vote_revote.html 共通
 // listEl   : ドロー一覧の描画先（.draw-list を付与した要素）
