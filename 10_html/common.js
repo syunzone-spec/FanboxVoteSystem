@@ -212,12 +212,13 @@ function renderSchedule(container, schedule) {
 // el          : 描画先要素
 // resultUpdate: { realtime: boolean, next_hour: number|null }
 // リアルタイム時は「随時更新」、それ以外は「〇時に更新されます」（〇時 表記・0:00 形式は使わない）
+// 見出しに整合する補助文をモード連動で併記する（静的な「時間がかかる場合があります」文言は廃止）
 // 01_core-spec.md §12.3.1 / 02_screen-spec.md §6.3
 // ==========================================
 function renderResultUpdate(el, resultUpdate) {
   if (!el || !resultUpdate) return;
   if (resultUpdate.realtime) {
-    el.textContent = '🔄 随時更新';
+    el.innerHTML = '🔄 随時更新<br>※投票は結果へすぐに反映されます。';
     return;
   }
   var hour = Number(resultUpdate.next_hour);
@@ -225,7 +226,8 @@ function renderResultUpdate(el, resultUpdate) {
     el.textContent = '';
     return;
   }
-  el.textContent = '🕒 ' + hour + '時に更新されます';
+  el.innerHTML = '🕒 ' + hour + '時に更新されます<br>'
+    + '※不正対策および集計確認のため、投票は次の更新時刻にまとめて反映されます。';
 }
 
 // ==========================================
