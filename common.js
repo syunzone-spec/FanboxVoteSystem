@@ -3,8 +3,10 @@
 // 04_style-guide.md / 01_core-spec.md 準拠
 // ==========================================
 
-// GAS API URL（全画面共通）
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxlHCDSZgIV8kQ7XpjTg6CXwVNxLszhjOzdXXQXa1ffiRw_X1qfR256vG-ZSP7d4SLWUg/exec";
+// API URL（全画面共通）
+// A-1 IP出自判定（01_core-spec.md §4.5）導入により、GAS exec URL → Cloudflare Worker URL へ差し替え。
+// Worker が真IP判定・HMAC 署名して GAS へ転送する（GAS exec URL は Worker 環境変数 GAS_EXEC_URL 側で保持）。
+const GAS_API_URL = "https://fanbox-vote-ipgate.syunzone.workers.dev";
 
 // ==========================================
 // IPアドレス取得
