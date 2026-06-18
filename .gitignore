@@ -5,3 +5,6 @@
 
 # .txt 一般（backend.txt のソース控え・投票ログ等の機微データを誤公開しないため）
 *.txt
+
+# A-1 Cloudflare Worker（IP出自判定ロジック・ASNリスト。防御設計のため公開リポジトリから分離。vault 版管理）
+12_worker/
