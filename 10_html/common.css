@@ -370,6 +370,7 @@ input, select, textarea {
   margin-bottom: 5px;
 }
 .char-name { font-weight: bold; font-size: 1.1em; }
+.supporter-mark { font-size: 0.9em; margin-left: 4px; }
 .char-theme { font-size: 0.85em; color: var(--color-subtext); margin-left: 5px; }
 .vote-count { font-weight: bold; font-size: 1.1em; color: var(--color-result-count); }
 .vote-count-unit { font-size: 0.7em; color: #888; }
