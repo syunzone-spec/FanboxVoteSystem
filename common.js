@@ -139,8 +139,9 @@ async function apiPost(data) {
 }
 
 // ==========================================
-// 結果描画（result.html / result_variant.html 共通）
+// 結果描画（result.html / result_variant.html / result_revote.html 共通）
 // 描画先は id="ranking-list" の要素
+// is_supporter_request === true の候補のみ ⭐ を付与（フィールド不在＝従来表示のまま）
 // ==========================================
 function renderResults(ranking) {
   var container = document.getElementById('ranking-list');
@@ -162,13 +163,15 @@ function renderResults(ranking) {
     else if (rank === 2) badgeClass += " rank-2";
     else if (rank === 3) badgeClass += " rank-3";
 
+    var supporterMark = item.is_supporter_request === true ? '<span class="supporter-mark">⭐</span>' : '';
+
     var div = document.createElement('div');
     div.className = 'result-row';
     div.innerHTML =
       '<div class="result-header">' +
         '<div>' +
           '<span class="' + badgeClass + '">' + rank + '</span>' +
-          '<span class="char-name">' + esc(item.character) + '</span>' +
+          '<span class="char-name">' + esc(item.character) + '</span>' + supporterMark +
           '<span class="char-theme">' + esc(item.theme) + '</span>' +
         '</div>' +
         '<span class="vote-count">' + item.count + '<small class="vote-count-unit">票</small></span>' +
