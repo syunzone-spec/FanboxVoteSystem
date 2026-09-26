@@ -17,6 +17,8 @@
         .desc-text { font-size: 0.9em; color: var(--color-subtext); text-align: center; }
         #loading-msg { margin-bottom: 20px; color: var(--color-subtext); }
         #vote-section, #done-section { text-align: center; }
+        .notice-divider { border: 0; border-top: 1px dashed var(--color-border); margin: 15px 0; }
+        .notice-warning { color: #d9534f; font-size: 0.9em; font-weight: bold; }
     </style>
 </head>
 <body class="theme-support">
@@ -30,6 +32,12 @@
     <div class="notice-box">
         <p>支援者限定の投票所です。認証後に投票できます。</p>
         <div class="schedule-info" id="schedule-area"></div>
+        <hr class="notice-divider">
+        <p class="notice-warning">
+            【重要】投票後、必ず指定の <a href="https://syunzou.fanbox.cc/" target="_blank" rel="noopener">FANBOX 記事</a> へコメントしてください。<br>
+            コメントでの本人確認が済むまで、投票は集計に反映されません。<br>
+            コメントがない場合、投票は無効のままとなります。
+        </p>
     </div>
 
     <div id="login-section" class="box login-box">
@@ -65,8 +73,14 @@
     </div>
 
     <div id="done-section" class="box hidden">
-        <h3>🎉 投票完了 🎉</h3>
-        <p>投票が完了しました！<br>ありがとうございました！</p>
+        <h3>🎉 投票を受け付けました 🎉</h3>
+        <p class="notice-warning">
+            ⚠️ まだ票は有効になっていません ⚠️<br>
+            指定の <a href="https://syunzou.fanbox.cc/" target="_blank" rel="noopener">FANBOX 記事</a> へ、投票した旨をコメントしてください。<br>
+            本人確認後に票が有効化され、結果に反映されます。<br>
+            コメントがない票は無効のまま、集計されません。
+        </p>
+        <p class="desc-text">支援者であることを公開したくない場合は、メッセージでご連絡ください。</p>
         <button onclick="location.href='result.html'">結果を見る</button>
 
         <div class="logout-link" onclick="confirmLogoutSupporter('ログアウトしますか？（次回ID入力が必要になります）')">IDを変更する（ログアウト）</div>
@@ -188,7 +202,7 @@
         }
 
         async function submitVote(targetId, charName, totalWeight) {
-            if(!confirm('「' + charName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。')) return;
+            if(!confirm('「' + charName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。\n\n※投票後、FANBOX 記事へのコメントで本人確認が済むまで票は有効になりません。')) return;
 
             var allBtns = document.querySelectorAll('.vote-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
