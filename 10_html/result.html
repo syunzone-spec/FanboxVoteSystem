@@ -61,6 +61,12 @@
                     if (json.data && json.data.schedule) {
                         renderSchedule(document.getElementById('schedule-area'), json.data.schedule);
                     }
+                    // 締め切り後の集計中（支援者票のコメント確認期間）は順位を表示しない
+                    if (json.data && json.data.counting) {
+                        container.innerHTML = '<div class="notice-box"><p><strong>🗳️ ただいま集計中です</strong></p>'
+                            + '<p>投票は締め切りました。支援者票の確認が済みしだい、結果を公開します。</p></div>';
+                        return;
+                    }
                     if (json.data && json.data.result_update) {
                         renderResultUpdate(document.getElementById('update-timing'), json.data.result_update);
                     }
