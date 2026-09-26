@@ -36,7 +36,7 @@
         <p class="notice-warning">
             【重要】投票後、必ず指定の <a href="https://syunzou.fanbox.cc/" target="_blank" rel="noopener">FANBOX 記事</a> へコメントしてください。<br>
             コメントでの本人確認が済むまで、投票は集計に反映されません。<br>
-            コメントがない場合、投票は無効のままとなります。
+            コメントの受付は締め切り翌日（1日）の 23:59 までです。期限までにコメントが確認できない票は無効となります。
         </p>
     </div>
 
@@ -78,7 +78,7 @@
             ⚠️ まだ票は有効になっていません ⚠️<br>
             指定の <a href="https://syunzou.fanbox.cc/" target="_blank" rel="noopener">FANBOX 記事</a> へ、投票した旨をコメントしてください。<br>
             本人確認後に票が有効化され、結果に反映されます。<br>
-            コメントがない票は無効のまま、集計されません。
+            コメントの受付は締め切り翌日（1日）の 23:59 までです。期限までにコメントが確認できない票は無効となります。
         </p>
         <p class="desc-text">支援者であることを公開したくない場合は、メッセージでご連絡ください。</p>
         <button onclick="location.href='result.html'">結果を見る</button>
@@ -202,7 +202,7 @@
         }
 
         async function submitVote(targetId, charName, totalWeight) {
-            if(!confirm('「' + charName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。\n\n※投票後、FANBOX 記事へのコメントで本人確認が済むまで票は有効になりません。')) return;
+            if(!confirm('「' + charName + '」に合計 ' + totalWeight + '票 を投票しますか？\n投票後の変更はできません。\n\n※投票後、FANBOX 記事へのコメントで本人確認が済むまで票は有効になりません。\nコメントの受付は締め切り翌日（1日）の 23:59 までです。')) return;
 
             var allBtns = document.querySelectorAll('.vote-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
