@@ -17,8 +17,7 @@
     <style>
         .desc-text { font-size: 0.9em; color: var(--color-subtext); text-align: center; }
         #loading-msg { margin-bottom: 20px; color: var(--color-subtext); }
-        #status-message { margin-top: 20px; text-align: center; font-weight: bold; }
-    </style>
+        #status-message { margin-top: 20px; text-align: center; font-weight: bold; }    </style>
 </head>
 <body class="theme-support">
 
@@ -32,9 +31,9 @@
 
     <div id="login-section" class="box login-box">
         <h3>支援者認証</h3>
-        <p class="desc-text">Fanboxの支援者IDと合言葉を入力してください。</p>
+        <p class="desc-text">Fanboxの支援者IDと合言葉を入力してください。<br>ユーザー名は、Pixiv ではなく FANBOX に表示されている名前を入力してください。</p>
         <input type="number" id="pixiv-id" placeholder="Pixiv ID (数字)">
-        <input type="text" id="pixiv-name" placeholder="Pixivユーザー名">
+        <input type="text" id="pixiv-name" placeholder="FANBOXユーザー名">
         <input type="text" id="monthly-pass" placeholder="今月の合言葉">
         <p class="desc-text">合言葉は <a href="https://syunzou.fanbox.cc/" target="_blank" rel="noopener">Fanbox の投稿</a> をご確認ください。</p>
         <button id="login-btn" class="btn-auth">認証して進む</button>
@@ -51,13 +50,12 @@
             <p>また、単体キャラリクエストの場合は、10位以下救済枠の対象にもなります。</p>
             <p>複数キャラリクエストも投稿できますが、10位以下救済枠の対象外となります。</p>
             <p>支援者リクエストは、投票結果ページで ⭐ マーク付きで表示されます。</p>
-            <p>既に同じお題をリクエスト済みの場合、近い題材で投稿していただければ、管理者判断で既存候補へ上書き・統合する場合があります。</p>
-            <p>別のお題をリクエストすることも可能ですが、その場合は票が分散して不利になる可能性があります。</p>
+            <p><strong><u>運営からの指摘で、FANBOX の一部投稿で公開停止が発生しています。<br>アカウントを守るため、ロリ系キャラクターの特に過激な内容などは、管理者判断でお受けできない場合があります。<br>投票開始までに候補に反映されなかったリクエストは、申し訳ありませんが、お受けできなかったものとしてご了承ください。</u></strong></p>
         </div>
 
         <div class="box">
             <h3>📝 リクエストを投稿</h3>
-            <p>期間中に同一HNから複数のリクエストがあった場合、<strong>最後に送信された内容のみを有効（後勝ち）</strong>とします。修正したい場合は再度送信してください。</p>
+            <p>間違った場合は再送してください。</p>
 
             <label>キャラクター名（複数キャラの場合は併記）</label>
             <input type="text" id="req-character" placeholder="例: 立花響" maxlength="30">
@@ -105,14 +103,14 @@
 
             if(!pid) return alert("Pixiv IDを入力してください");
             if(!pass) return alert("合言葉を入力してください");
-            if(!name) return alert("Pixivユーザー名を入力してください");
+            if(!name) return alert("ユーザー名を入力してください");
 
             doLogin(pid, pass, name);
         });
 
         async function doLogin(pid, pass, name) {
             // 手動・自動どちらの経路でも空のユーザー名を弾く（集計・識別用の値のため）
-            if(!name) return alert("Pixivユーザー名を入力してください");
+            if(!name) return alert("ユーザー名を入力してください");
 
             var loginBox = document.getElementById('login-section');
             var loadingMsg = document.getElementById('loading-msg');
