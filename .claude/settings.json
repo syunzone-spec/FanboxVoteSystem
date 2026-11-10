@@ -1,13 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Read(*)",
+      "Read",
       "Edit",
-      "Write(*)",
+      "Write",
       "Update(*)",
       "Update(*:*)",
-      "Grep(*)",
-      "Glob(*)",
+      "Grep",
+      "Glob",
       "Bash(dotnet:*)",
       "Bash(find:*)",
       "Bash(git:*)",
